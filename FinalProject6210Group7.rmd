@@ -50,10 +50,10 @@ stability <- function(data, response, B = 100, K = 5, epsilon = 1e-6,
   
   # Calculate stability
   pi <- colMeans(result_matrix)
-  stability <- data.frame(variable = predictors, pi = pi)
-  stability <- stability[order(-stability$pi), ]
+  path_stability <- data.frame(variable = predictors, pi = pi)
+  path_stability <- path_stability[order(-path_stability$pi), ]
   
-  return(list(stability = stability, resampling = resampling))
+  return(list(path_stability = path_stability, resampling = resampling))
 }
 ```
 
