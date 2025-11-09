@@ -1,0 +1,43 @@
+stability <- function(data, response, B = 100, K = 5, epsilon = 1e-6, 
+                           delta = 2, L = 25, model_type = NULL) {
+  
+  result_matrix <- matrix(0, nrow = B, ncol = length(setdiff(names(data), response)),
+                          dimnames = list(NULL, setdiff(names(data), response)))
+  
+  resampling <- vector("list", B)
+  predictors <- colnames(result_matrix)
+  p_length <- length(predictors)
+  
+  for (b in 1:B) {
+    # Bootstrap
+    index_b <- sample(1:nrow(data), size = nrow(data), replace = TRUE)
+    data_b <- data[index_b, , drop = FALSE]
+    
+    # Fit model
+    models_b <- build_paths(data_b, response,
+                            K = K, epsilon = epsilon,
+                            delta = delta, L = L,
+                            model_type = model_type)
+    
+    # Feature inclusion
+    counts <- rep(0, p)
+    names(counts) <- predictors
+    if (length(models_b) > 0) {
+      for (m in models_b) counts[m$variables] <- counts[m$variables] + 1
+    }
+    
+    # Proportions for Bootstrap sample
+    z_j_b <- counts / (ifelse(length(models_b) > 0, length(models_b), 1)) # calculates ( z_j^{(b)} )
+    result_matrix[b, ] <- z_j_b
+    
+    # Store proportions
+    resampling [[b]] <- z_j_b
+  }
+  
+  # Calculate stability
+  pi <- colMeans(result_matrix)
+  stability <- data.frame(variable = predictors, pi = pi)
+  stability <- stability[order(-stability$pi), ]
+  
+  return(list(stability = stability, resampling = resampling))
+}
