@@ -1,17 +1,3 @@
----
-title: "Final Project Group 7"
-author: "Savannah Rascon, Lilley Brookshire, Nimra Ismail"
-date: "`r Sys.Date()`"
-output: html_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-
-# 3.2 resampling with model‑set proportions
-```{r}
 stability <- function(data, response, B = 100, K = 5, epsilon = 1e-6, 
                            delta = 2, L = 25, model_type = NULL) {
   
@@ -55,10 +41,3 @@ stability <- function(data, response, B = 100, K = 5, epsilon = 1e-6,
   
   return(list(path_stability = path_stability, resampling = resampling))
 }
-```
-
-
-
-
-
-
