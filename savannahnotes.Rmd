@@ -1,0 +1,183 @@
+---
+title: "savannahnotes"
+output: html_document
+---
+```{r}
+adult_csv <- read.csv("/Users/srascon/Downloads/6210/git/HW2_Group14/adult.csv", sep = ";")
+adult <- data.frame(adult_csv)
+adult <- adult[,-1]
+
+# change character columns to factor
+adult$workclass <- as.factor(adult$workclass)
+adult$education <- as.factor(adult$education)
+adult$marital.status <- as.factor(adult$marital.status)
+adult$occupation <- as.factor(adult$occupation)
+adult$relationship <- as.factor(adult$relationship)
+adult$race <- as.factor(adult$race)
+adult$sex <- as.factor(adult$sex)
+adult$native.country <- as.factor(adult$native.country)
+adult$NA. <- as.factor(adult$NA.)
+
+y <- as.factor(adult$NA.)
+colnames(adult)[15] <- "income"
+y <- as.factor(y)
+
+
+```
+
+
+
+Section 3.1
+```{r}
+
+build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25,
+                        model_type = NULL) {
+  # Auto-detect model type if not specified
+  detect_model_type <- function(data, response) {
+  y <- response
+  if (is.factor(y) || length(unique(y)) == 2) return("logistic")
+  if (is.numeric(y)) return("linear")
+  stop("Cannot detect model type automatically.")
+}
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(data, response)
+    cat("Detected model type:", model_type, "\n")
+  }
+
+  predictors <- setdiff(names(data), response)
+
+  # Internal model fitting helper
+  fit_model <- function(vars) {
+    formula_str <- paste("income ~", ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
+    if (model_type == "linear") {
+      return(lm(as.formula(formula_str), data = data))
+    } else if (model_type == "logistic") {
+      return(glm(as.formula(formula_str), data = data, family = binomial))
+    }
+  }
+
+  start_fit <- fit_model(c())
+  models <- list(list(variables = c(), AIC = AIC(start_fit)))
+
+  step <- 1
+  repeat {
+    cat("\nStep", step, "\n")
+    new_models <- list()
+
+    for (m in models) {
+      current_vars <- m$variables
+      remaining_vars <- setdiff(predictors, current_vars)
+      if (length(remaining_vars) == 0) next
+
+      candidate_models <- list()
+      for (v in remaining_vars) {
+        new_vars <- c(current_vars, v)
+        suppressWarnings({
+          fit <- fit_model(new_vars)
+        })
+        aic_val <- AIC(fit)
+        candidate_models[[v]] <- list(variables = new_vars, AIC = aic_val)
+      }
+
+      aic_values <- sapply(candidate_models, function(x) x$AIC)
+      best_aic <- min(aic_values)
+      near_tie_models <- candidate_models[aic_values <= best_aic + delta]
+
+      if (best_aic < m$AIC - epsilon) {
+        new_models <- c(new_models, near_tie_models)
+      }
+    }
+
+    if (length(new_models) == 0 || step >= K) {
+      cat("No further AIC improvement. Stopping at step", step, "\n")
+      break
+    }
+
+    models <- new_models[1:min(L, length(new_models))]
+    cat("Number of models kept:", length(models), "\n")
+    for (i in seq_along(models)) {
+      cat("Model", i, ":", paste(models[[i]]$variables, collapse = ", "),
+          "| AIC =", round(models[[i]]$AIC, 3), "\n")
+    }
+    step <- step + 1
+  }
+
+  return(models)
+}
+
+build_paths(data = adult, response = y)
+build_paths()
+typeof(y)
+
+```
+
+Section 3.2
+```{r}
+
+stability <- function(data, response, B = 100, K = 5, epsilon = 1e-6, 
+                           delta = 2, L = 25, model_type = NULL) {
+  
+  result_matrix <- matrix(0, nrow = B, ncol = length(setdiff(names(data), response)),
+                          dimnames = list(NULL, setdiff(names(data), response)))
+  
+  resampling <- vector("list", B)
+  predictors <- colnames(result_matrix)
+  p_length <- length(predictors)
+  
+  for (b in 1:B) {
+    # Bootstrap
+    index_b <- sample(1:nrow(data), size = nrow(data), replace = TRUE)
+    data_b <- data[index_b, , drop = FALSE]
+    
+    # Fit model
+    models_b <- build_paths(data_b, response,
+                            K = K, epsilon = epsilon,
+                            delta = delta, L = L,
+                            model_type = model_type)
+    
+    # Feature inclusion
+    counts <- rep(0, p)
+    names(counts) <- predictors
+    if (length(models_b) > 0) {
+      for (m in models_b) counts[m$variables] <- counts[m$variables] + 1
+    }
+    
+    # Proportions for Bootstrap sample
+    z_j_b <- counts / (ifelse(length(models_b) > 0, length(models_b), 1)) # calculates ( z_j^{(b)} )
+    result_matrix[b, ] <- z_j_b
+    
+    # Store proportions
+    resampling [[b]] <- z_j_b
+  }
+  
+  # Calculate stability
+  pi <- colMeans(result_matrix)
+  path_stability <- data.frame(variable = predictors, pi = pi)
+  path_stability <- path_stability[order(-path_stability$pi), ]
+  
+  return(list(path_stability = path_stability, resampling = resampling))
+}
+```
+
+Section 3.3
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
