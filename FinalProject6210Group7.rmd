@@ -34,8 +34,8 @@ stability <- function(data, response, B = 100, K = 5, epsilon = 1e-6,
                             model_type = model_type)
     
     # Feature inclusion
-    counts <- rep(0, p)
-    names(counts) <- predictors
+    counts <- setNames(rep(0, length(predictors)), predictors)
+
     if (length(models_b) > 0) {
       for (m in models_b) counts[m$variables] <- counts[m$variables] + 1
     }
