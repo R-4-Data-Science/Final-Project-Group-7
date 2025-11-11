@@ -56,14 +56,18 @@ build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25
     }
   }
 
+  # start from a null model
   start_fit <- fit_model(c())
-  models <- list(list(variables = c(), AIC = AIC(start_fit)))
+  start_aic <- AIC(start_fit)
+  models <- list(list(variables = character(0), AIC = start_aic))
+  all_models <- models # store all models found
 
   step <- 1
   repeat {
     cat("\nStep", step, "\n")
     new_models <- list()
 
+    # for each model, expand by adding one new variable
     for (m in models) {
       current_vars <- m$variables
       remaining_vars <- setdiff(predictors, current_vars)
@@ -75,15 +79,18 @@ build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25
         suppressWarnings({
           fit <- fit_model(new_vars)
         })
-        aic_val <- AIC(fit)
-        candidate_models[[v]] <- list(variables = new_vars, AIC = aic_val)
+        candidate_models[[v]] <- list(variables = new_vars, AIC = AIC(fit))
       }
+      
+      if(length(candidate_models) == 0) next
 
       aic_values <- sapply(candidate_models, function(x) x$AIC)
       best_aic <- min(aic_values)
-      near_tie_models <- candidate_models[aic_values <= best_aic + delta]
+      improved <- candidate_models[aic_values < m$AIC - epsilon]
+      near_tie_models <- improved[aic_values[aic_values < m$AIC - epsilon] <= best_aic + delta]
+                        
 
-      if (best_aic < m$AIC - epsilon) {
+      if (length(near_tie_models) > 0) {
         new_models <- c(new_models, near_tie_models)
       }
     }
@@ -93,21 +100,26 @@ build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25
       break
     }
 
-    models <- new_models[1:min(L, length(new_models))]
+    new_models <- new_models[1:min(L, length(new_models))]
+    
     cat("Number of models kept:", length(models), "\n")
     for (i in seq_along(models)) {
       cat("Model", i, ":", paste(models[[i]]$variables, collapse = ", "),
           "| AIC =", round(models[[i]]$AIC, 3), "\n")
     }
+    models <- new_models
+    all_models <- c(all_models, new_models)
     step <- step + 1
   }
+  
+  unique_keys <- vapply(all_models, function(m) paste(sort(m$variables), collapse = "+"), "")
+  all_models <- all_models[!duplicated(unique_keys)]
 
-  return(models)
+  return(all_models)
 }
 
 build_paths(data = adult, response = y)
-build_paths()
-typeof(y)
+
 
 ```
 
@@ -165,6 +177,113 @@ Section 3.3
 ```
 
 
+```{r}
+# test other version
+
+build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25,
+                        model_type = NULL) {
+  
+  # --- Auto-detect model type ---
+  detect_model_type <- function(data, response) {
+    y <- data[response]
+    if (is.factor(y) || length(unique(y)) == 2) return("logistic")
+    if (is.numeric(y)) return("linear")
+    stop("Cannot detect model type automatically.")
+  }
+
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(data, response)
+    cat("Detected model type:", model_type, "\n")
+  }
+
+  predictors <- setdiff(names(data), response)
+
+  # --- Model fitting helper ---
+  fit_model <- function(vars) {
+    formula_str <- paste(response, "~",
+                         ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
+    if (model_type == "linear") {
+      return(lm(as.formula(formula_str), data = data))
+    } else {
+      return(glm(as.formula(formula_str), data = data, family = binomial))
+    }
+  }
+
+  # --- Start with null model ---
+  start_fit <- fit_model(c())
+  start_aic <- AIC(start_fit)
+  models <- list(list(variables = character(0), AIC = start_aic))
+  all_models <- models
+
+  step <- 1
+  repeat {
+    cat("\nStep", step, "\n")
+    new_models <- list()
+
+    for (m in models) {
+      current_vars <- m$variables
+      remaining_vars <- setdiff(predictors, current_vars)
+      if (length(remaining_vars) == 0) next
+
+      candidate_models <- list()
+      for (v in remaining_vars) {
+        new_vars <- c(current_vars, v)
+        suppressWarnings({
+          fit <- try(fit_model(new_vars), silent = TRUE)
+        })
+        if (inherits(fit, "try-error")) next
+        candidate_models[[v]] <- list(variables = new_vars, AIC = AIC(fit))
+      }
+
+      if (length(candidate_models) == 0) next
+
+      # Evaluate improvement
+      aic_values <- sapply(candidate_models, function(x) x$AIC)
+      best_aic <- min(aic_values)
+      improved <- candidate_models[aic_values < m$AIC - epsilon]
+      near_ties <- improved[aic_values[aic_values < m$AIC - epsilon] <= best_aic + delta]
+
+      # Keep all near-ties as new models for next iteration
+      if (length(near_ties) > 0) {
+        new_models <- c(new_models, near_ties)
+      }
+    }
+
+    # Stop if no further improvements
+    if (length(new_models) == 0 || step >= K) {
+      cat("No further AIC improvement. Stopping at step", step, "\n")
+      break
+    }
+
+    # Optionally limit total number of models
+    if (length(new_models) > L) {
+      new_models <- new_models[order(sapply(new_models, `[[`, "AIC"))[1:L]]
+    }
+
+    # Print *this generation* of models
+    cat("Number of models created:", length(new_models), "\n")
+    for (i in seq_along(new_models)) {
+      cat(" Model", i, ":", paste(new_models[[i]]$variables, collapse = ", "),
+          "| AIC =", round(new_models[[i]]$AIC, 3), "\n")
+    }
+
+    # Update active models for next iteration and record them all
+    models <- new_models
+    all_models <- c(all_models, new_models)
+    step <- step + 1
+  }
+
+  # Deduplicate models (same variables in different order)
+  unique_keys <- vapply(all_models, function(m) paste(sort(m$variables), collapse = "+"), "")
+  all_models <- all_models[!duplicated(unique_keys)]
+
+  return(all_models)
+}
+
+build_paths(data = adult[,1:14], response = adult[,15], K = 5, epsilon = 1e-6, delta = 2, L = 25,
+                        model_type = NULL)
+
+```
 
 
 
