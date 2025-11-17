@@ -24,6 +24,8 @@ y <- as.factor(y)
 
 colnames(adult)[15] <- "y"
 
+"income" <- colnames(X)
+
 X <- adult
 X$y
 
@@ -228,12 +230,13 @@ build_paths <- function(X = X[,1:14], response = X$y, K = 5, epsilon = 10, delta
   
   k <- 1
     
-    for (i in 1:K) {
+    for (a in 1:K) {
       
       if(k == 1){
         
-        fit <- list()
+        start_fit <- list()
         
+        # make 1 predictor models
         for(i in 1:length(predictors)){
         
         suppressWarnings({
@@ -241,18 +244,115 @@ build_paths <- function(X = X[,1:14], response = X$y, K = 5, epsilon = 10, delta
         })
         if (inherits(fit[[i]], "try-error")) next
         
-        start_aic[i] <- summary(fit[[i]])
-        
-        start_models[[i]] <- list(variables = predictors[i], fit = fit[[i]], AIC = )
+        # calculate AIC for 1 predictor models
+        start_aic[i] <- AIC(start_fit[[i]])
         
         }
         
+        # save info for 1 predictor models, add to total model list, move to k = 2
+        start_models <- list(variables = predictors, fit = start_fit, AIC = start_aic)
         all_models <- append(all_models, list(start_models))
+        k <- k+1
         
       } else{
         
+      current_vars <- start_models$variables
+  
+      vars_diff <- list()
+      child_combos <- list()
       
-      current_vars <- start_vars
+      # determine sets of variables that make up the child combinations for this dimension
+      for(b in 1:length(current_vars)){
+      
+      # this identifies the new variables that need to be added one by one to each model
+      vars_diff[[b]] <- setdiff(predictors, current_vars[b])
+      
+      # for each model b, make a list of combinations that includes each of 
+      child_combos[[b]] <- lapply(vars_diff[[b]], function(x) append(x, current_vars[b]))
+      }
+      
+      # make a list to contain all child models
+      child_models
+      
+      # make a list to contain child models
+      child_fit <- list()
+      
+      # make a list to contain child AIC
+      child_fit_aic <- list()
+      
+      # models retained after comparison to parent
+      child_retain <- list()
+      
+      for(b in 1:length(child_combos)){
+        
+        # fit child models for each parent model
+        child_fit[[b]] <- lapply(child_combos[[b]], fit_model)
+        
+        # calculate AIC for each child model
+        child_fit_aic[[b]] <- lapply(child_fit[[b]], AIC)
+        
+      }
+        
+        # compare AIC between child models and parent models
+      extract_child_aic <- list()
+      
+      for(b in 1:length(child_fit_aic)){
+        
+        extract_child_aic <- child_fit_aic[[b]]
+        
+        for(c in 1:length(extract_child_aic)){
+          
+        if(as.numeric(extract_child_aic[[c]]) > (start_models$AIC[b] - delta) & as.numeric(extract_child_aic[[b]]) < (start_models$AIC[b] + delta)){
+          
+          child_retain[[c]] <- list(child_fit[[c]], child_combos[[c]])
+          
+        }
+      }
+    }  
+  
+   child_retain <- list()
+
+for (b in seq_along(child_fit_aic)) {
+
+  parent_aic <- start_models$AIC[b]
+  child_aics <- child_fit_aic[[b]]
+
+  for (c in seq_along(child_aics)) {
+
+    child_aic <- child_aics[[c]]   # extract numeric AIC
+
+    if (child_aic > (parent_aic - delta) &&
+        child_aic < (parent_aic + delta)) {
+      
+      child_retain[[b]][[c]] <- list(
+           fit   = child_fit[[b]][[c]],
+        combo = child_combos[[b]][[c]],
+        parent = b,
+        child = c
+      )
+      
+    }
+  }
+}
+      
+      
+
+      child_retain[[length(child_retain) + 1]] <- list(
+        fit   = child_fit[[b]][[c]],
+        combo = child_combos[[b]][[c]],
+        parent = b,
+        child = c
+      )
+    }
+  }
+}
+   
+      
+      
+############# left off here on Monday
+  
+      
+      
       remaining_vars <- setdiff(predictors, current_vars)
       if (length(remaining_vars) == 0) next
 
@@ -301,8 +401,9 @@ build_paths <- function(X = X[,1:14], response = X$y, K = 5, epsilon = 10, delta
     # Update active models for next iteration and record them all
     models <- new_models
     all_models <- c(all_models, new_models)
-    step <- step + 1
+    k <- k + 1
     start_vars
+    
     }
 }
 
@@ -313,7 +414,7 @@ build_paths <- function(X = X[,1:14], response = X$y, K = 5, epsilon = 10, delta
   return(all_models)
 }
 
-build_paths(X = adult[,1:14], response = adult[,15], K = 5, epsilon = 10, delta = 200, L = 25,
+build_paths(data = adult[,1:14], response = adult[,15], K = 5, epsilon = 10, delta = 200, L = 25,
                         model_type = NULL)
 
 ```
