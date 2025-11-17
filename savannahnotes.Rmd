@@ -18,9 +18,14 @@ adult$sex <- as.factor(adult$sex)
 adult$native.country <- as.factor(adult$native.country)
 adult$NA. <- as.factor(adult$NA.)
 
-y <- as.factor(adult$NA.)
-colnames(adult)[15] <- "income"
+y <- adult[,15]
+names(y)
 y <- as.factor(y)
+
+colnames(adult)[15] <- "y"
+
+X <- adult
+X$y
 
 
 ```
@@ -115,7 +120,7 @@ build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25
   unique_keys <- vapply(all_models, function(m) paste(sort(m$variables), collapse = "+"), "")
   all_models <- all_models[!duplicated(unique_keys)]
 
-  return(all_models)
+  return(all_models = all_models)
 }
 
 build_paths(data = adult, response = y)
@@ -178,41 +183,47 @@ Section 3.3
 
 
 ```{r}
-# test other version
+# Edit build paths
 
-build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25,
+build_paths <- function(X = X[,1:14], response = X$y, K = 5, epsilon = 10, delta = 200, L = 25,
                         model_type = NULL) {
   
   # --- Auto-detect model type ---
-  detect_model_type <- function(data, response) {
-    y <- data[response]
+  detect_model_type <- function(response) {
+    y <- response
     if (is.factor(y) || length(unique(y)) == 2) return("logistic")
     if (is.numeric(y)) return("linear")
     stop("Cannot detect model type automatically.")
   }
 
   if (is.null(model_type)) {
-    model_type <- detect_model_type(data, response)
+    model_type <- detect_model_type(response)
     cat("Detected model type:", model_type, "\n")
   }
 
-  predictors <- setdiff(names(data), response)
+  predictors <- setdiff(colnames(X), "y")
+  response_name <- "y"
 
   # --- Model fitting helper ---
+  # *** input vars is the colnames of variables? ****
   fit_model <- function(vars) {
-    formula_str <- paste(response, "~",
+    formula_str <- paste(response_name, "~",
                          ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
     if (model_type == "linear") {
-      return(lm(as.formula(formula_str), data = data))
+      return(lm(as.formula(formula_str), data = X))
     } else {
-      return(glm(as.formula(formula_str), data = data, family = binomial))
+      return(glm(as.formula(formula_str), data = X, family = binomial))
     }
   }
-
+  
   # --- Start with null model ---
-  start_fit <- fit_model(c())
+  start_fit <- fit_model(character())
   start_aic <- AIC(start_fit)
+  
+  # *** why is this two nested lists? ***
   models <- list(list(variables = character(0), AIC = start_aic))
+  
+  # **** what is the purpose of the code below? ****
   all_models <- models
 
   step <- 1
@@ -220,8 +231,9 @@ build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25
     cat("\nStep", step, "\n")
     new_models <- list()
 
-    for (m in models) {
-      current_vars <- m$variables
+    
+    for (k in 1:K) {
+      current_vars <- models$variables
       remaining_vars <- setdiff(predictors, current_vars)
       if (length(remaining_vars) == 0) next
 
