@@ -1,0 +1,77 @@
+# FinalProjectNimra
+
+### Multi-Path AIC Model Selection with Stability and Plausibility Filtering
+
+This R package implements a **multi-path model selection algorithm** based on the Akaike Information Criterion (AIC). It automatically explores multiple near-optimal model paths, evaluates **variable stability** through resampling, and identifies **plausible, stable models** for both linear and logistic regression tasks.
+
+---
+
+## Installation
+
+You can install the package directly from GitHub using:
+
+```{r}
+# Install devtools if not already available
+install.packages("remotes")
+
+# Install the package
+remotes::install_github("R-4-Data-Science/FinalProjectNimra")
+
+#Then load it with:
+library(FinalProjectNimra)
+
+```
+
+## Example 1 – Linear Regression
+
+Below is a minimal example demonstrating the end-to-end workflow on the built-in mtcars dataset.
+
+```{r}
+set.seed(123)
+
+# Run full multi-path model selection
+res_linear <- multi_path_AIC_procedure(
+  data = mtcars,
+  response = "mpg",
+  K = 4,       # number of forward steps
+  B = 20,      # bootstrap resamples
+  delta = 1,   # AIC tolerance
+  tau = 0.6    # stability threshold
+)
+
+# List plausible models
+res_linear$plausible_models
+
+# Plot variable stability
+plot_stability(res_linear$stability)
+```
+
+## Example 2 – Logistic Regression
+
+This example uses the same data but treats am (automatic/manual transmission) as a binary response.
+
+```{r}
+set.seed(123)
+
+# Run logistic model selection
+res_logistic <- multi_path_AIC_procedure(
+  data = mtcars,
+  response = "am",
+  K = 4,
+  B = 20,
+  delta = 1,
+  tau = 0.6
+)
+
+# Display plausible logistic models
+res_logistic$plausible_models
+
+# Plot stability
+plot_stability(res_logistic$stability)
+
+```
+
+## Summary
+
+The package demonstrates how multi-path AIC selection and stability analysis together provide
+a robust framework for identifying reproducible, interpretable models in both linear and logistic regression.
