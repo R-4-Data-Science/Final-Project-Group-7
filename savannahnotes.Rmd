@@ -18,24 +18,98 @@ adult$sex <- as.factor(adult$sex)
 adult$native.country <- as.factor(adult$native.country)
 adult$NA. <- as.factor(adult$NA.)
 
-y <- adult[,15]
-names(y)
-y <- as.factor(y)
+
 
 colnames(adult)[15] <- "y"
 
-"income" <- colnames(X)
-
 X <- adult
-X$y
+
+
+
+```
+
+```{r}
+
+#test original code:
+
+test <- build_paths(data = adult[,1:14], response = adult[,15])
+build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25,
+                        model_type = NULL) {
+  # Auto-detect model type if not specified
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(data, response)
+    cat("Detected model type:", model_type, "\n")
+  }
+
+  predictors <- setdiff(names(data), response)
+
+  # Internal model fitting helper
+  fit_model <- function(vars) {
+    formula_str <- paste(response, "~", ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
+    if (model_type == "linear") {
+      return(lm(as.formula(formula_str), data = data))
+    } else if (model_type == "logistic") {
+      return(glm(as.formula(formula_str), data = data, family = binomial))
+    }
+  }
+
+  start_fit <- fit_model(c())
+  models <- list(list(variables = c(), AIC = AIC(start_fit)))
+
+  step <- 1
+  repeat {
+    cat("\nStep", step, "\n")
+    new_models <- list()
+
+    for (m in models) {
+      current_vars <- m$variables
+      remaining_vars <- setdiff(predictors, current_vars)
+      if (length(remaining_vars) == 0) next
+
+      candidate_models <- list()
+      for (v in remaining_vars) {
+        new_vars <- c(current_vars, v)
+        suppressWarnings({
+          fit <- fit_model(new_vars)
+        })
+        aic_val <- AIC(fit)
+        candidate_models[[v]] <- list(variables = new_vars, AIC = aic_val)
+      }
+
+      aic_values <- sapply(candidate_models, function(x) x$AIC)
+      best_aic <- min(aic_values)
+      near_tie_models <- candidate_models[aic_values <= best_aic + delta]
+
+      if (best_aic < m$AIC - epsilon) {
+        new_models <- c(new_models, near_tie_models)
+      }
+    }
+
+    if (length(new_models) == 0 || step >= K) {
+      cat("No further AIC improvement. Stopping at step", step, "\n")
+      break
+    }
+
+    models <- new_models[1:min(L, length(new_models))]
+    cat("Number of models kept:", length(models), "\n")
+    for (i in seq_along(models)) {
+      cat("Model", i, ":", paste(models[[i]]$variables, collapse = ", "),
+          "| AIC =", round(models[[i]]$AIC, 3), "\n")
+    }
+    step <- step + 1
+  }
+
+  return(models)
+}
+
 
 
 ```
 
 
-
 Section 3.1
 ```{r}
+test <- build_paths(adult[,1:14], response = adult[,15])
 
 build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25,
                         model_type = NULL) {
@@ -186,8 +260,10 @@ Section 3.3
 Savannah's edits to build paths:
 ```{r}
 # Edit build paths
+X = adult[,1:14]
+response = adult[,15]
 
-build_paths <- function(X = X[,1:14], response = X$y, K = 5, epsilon = 10, delta = 200, L = 25,
+build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25,
                         model_type = NULL) {
   
   # --- Auto-detect model type ---
@@ -203,11 +279,11 @@ build_paths <- function(X = X[,1:14], response = X$y, K = 5, epsilon = 10, delta
     cat("Detected model type:", model_type, "\n")
   }
 
-  predictors <- setdiff(colnames(X), "y")
-  response_name <- "y"
+  predictors <- colnames(X)
+  response_name <- "response"
 
   # --- Model fitting helper ---
-  # *** input vars is the colnames of variables? ****
+  # *** input vars is the colnames of variables? **** yes I think so
   fit_model <- function(vars) {
     formula_str <- paste(response_name, "~",
                          ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
@@ -220,7 +296,7 @@ build_paths <- function(X = X[,1:14], response = X$y, K = 5, epsilon = 10, delta
   
   # --- Start with null model ---
   null_fit <- fit_model(character())
-  null_aic <- AIC(start_fit)
+  null_aic <- AIC(null_fit)
   null_vars <- c()
   
   # all_models is a list that contains lists for each set of models. The first list set is an entry for the null model which only contains the intercept.
@@ -419,6 +495,12 @@ build_paths(data = adult[,1:14], response = adult[,15], K = 5, epsilon = 10, del
 
 ```
 
+Version 1 for Part 3 Plausible Models
+```{r}
+
+
+plausible_models()
+```
 
 
 
