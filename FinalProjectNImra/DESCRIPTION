@@ -1,0 +1,17 @@
+Package: FinalProjectNimra
+Type: Package
+Title: Multi-Path Model Selection using AIC
+Version: 0.1.0
+Author: NImra Ismail
+Maintainer: NImra Ismail <nii002@auburn.edu>
+Description: Implements a multi-path AIC model selection process with stability analysis.
+License: MIT
+Encoding: UTF-8
+LazyData: true
+Imports:
+    ggplot2,
+    dplyr,
+    tibble,
+    stats,
+    utils
+RoxygenNote: 7.3.3
