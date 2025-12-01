@@ -1,77 +1,154 @@
-#' Multi-Path Forward Selection
+#' Multi-Path Forward Selection (auto-detects model type)
 #'
-#' Implements forward selection with multiple near-optimal AIC paths.
+#' Implements forward selection with multiple near-optimal AIC paths for
+#' linear (Gaussian) or logistic (binomial) regression. If `model_type = NULL`,
+#' the type is auto-detected from the response:
+#' - Binary factor / logical / numeric in {0,1} → `"logistic"`
+#' - Otherwise → `"linear"`
 #'
 #' @param data Data frame.
-#' @param response Response variable name.
-#' @param K Maximum steps.
-#' @param epsilon Minimum improvement threshold.
-#' @param delta AIC tie threshold.
-#' @param L Maximum number of models to keep.
-#' @param model_type "linear" or "logistic".
-#' @return A list of selected models and their AIC values.
+#' @param response Response variable name (character).
+#' @param K Maximum number of forward steps (default 5).
+#' @param epsilon Minimum AIC improvement to continue from a parent (default 1e-6).
+#' @param delta AIC tie threshold; keep children within `best + delta` (default 2).
+#' @param L Maximum number of models to keep per step (default 25).
+#' @param model_type "linear", "logistic", or `NULL` for auto-detect (default `NULL`).
+#'
+#' @return A list with:
+#' \itemize{
+#'   \item \code{path_forest}: list of frontiers (models kept at each step)
+#'   \item \code{aic_by_model}: named list mapping "var1,var2,..." → AIC
+#'   \item \code{meta}: list of meta settings (K, epsilon, delta, L, model_type)
+#' }
 #' @export
+#'
+#' @examples
+#' # Linear (auto-detected): response is numeric with many values
+#' mp_lin <- multi_path_forward(mtcars, response = "mpg", K = 3, delta = 2)
+#' str(mp_lin$path_forest, max.level = 1)
+#'
+#' # Logistic (auto-detected): response has 2 levels
+#' mt <- within(mtcars, { am <- factor(am) })
+#' mp_log <- multi_path_forward(mtcars, response = "am", K = 3, delta = 2)
+#' str(mp_log$path_forest, max.level = 1)
+#'
 multi_path_forward <- function(data, response,
                                K = 5, epsilon = 1e-6, delta = 2, L = 25,
-                               model_type = "linear") {
+                               model_type = NULL) {
+
+  # --- Local helper: detect model type (not exported) -----------------------
+  detect_model_type <- function(data, response) {
+    y <- data[[response]]
+    if (is.factor(y) && nlevels(y) == 2) return("logistic")
+    if (is.logical(y)) return("logistic")
+    if (is.numeric(y)) {
+      uy <- unique(stats::na.omit(y))
+      if (length(uy) <= 2 && all(uy %in% c(0, 1))) return("logistic")
+    }
+    "linear"
+  }
+
+  # --- Auto-detect model type if needed ------------------------------------
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(data, response)
+    cat("Detected model type:", model_type, "\n")
+  } else {
+    model_type <- match.arg(tolower(model_type), c("linear", "logistic"))
+  }
+
   predictors <- setdiff(names(data), response)
 
+  # --- Fit function ---------------------------------------------------------
   fit_model <- function(vars) {
-    formula_str <- paste(response, "~", ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
+    formula_str <- paste(
+      response, "~",
+      ifelse(length(vars) == 0, "1", paste(vars, collapse = "+"))
+    )
+    f <- stats::as.formula(formula_str)
+
     if (model_type == "linear") {
-      return(lm(as.formula(formula_str), data = data))
-    } else if (model_type == "logistic") {
-      return(glm(as.formula(formula_str), data = data, family = binomial))
+      stats::lm(f, data = data)
     } else {
-      stop("Invalid model_type. Use 'linear' or 'logistic'.")
+      stats::glm(f, data = data, family = stats::binomial())
     }
   }
 
-  start_fit <- fit_model(c())
-  models <- list(list(variables = c(), AIC = AIC(start_fit)))
+  # --- Initialize -----------------------------------------------------------
+  start_fit <- fit_model(character())
+  start_aic <- stats::AIC(start_fit)
 
-  step <- 1
+  models <- list(list(variables = character(), AIC = start_aic))
+  frontiers <- list()
+  aic_by_model <- list()
+
+  step <- 1L
   repeat {
-    cat("\nStep", step, "\n")
     new_models <- list()
+    model_hash <- character()
 
     for (m in models) {
       current_vars <- m$variables
       remaining_vars <- setdiff(predictors, current_vars)
-      if (length(remaining_vars) == 0) next
+      if (length(remaining_vars) == 0L) next
 
       candidate_models <- list()
       for (v in remaining_vars) {
         new_vars <- c(current_vars, v)
-        suppressWarnings({
-          fit <- fit_model(new_vars)
-        })
-        aic_val <- AIC(fit)
-        candidate_models[[v]] <- list(variables = new_vars, AIC = aic_val)
+        key <- paste(sort(new_vars), collapse = ",")
+
+        if (key %in% model_hash) next
+
+        fit <- try(suppressWarnings(fit_model(new_vars)), silent = TRUE)
+        if (inherits(fit, "try-error")) next
+
+        aic_val <- stats::AIC(fit)
+        if (!is.finite(aic_val)) next
+
+        candidate_models[[key]] <- list(variables = new_vars, AIC = aic_val)
+        model_hash <- c(model_hash, key)
       }
 
-      aic_values <- sapply(candidate_models, function(x) x$AIC)
+      if (length(candidate_models) == 0L) next
+
+      aic_values <- vapply(candidate_models, function(x) x$AIC, numeric(1))
       best_aic <- min(aic_values)
-      near_tie_models <- candidate_models[aic_values <= best_aic + delta]
 
+      # Keep only near-best children
+      selected <- candidate_models[aic_values <= best_aic + delta]
+
+      # Only if parent improves by > ε
       if (best_aic < m$AIC - epsilon) {
-        new_models <- c(new_models, near_tie_models)
+        new_models <- c(new_models, selected)
       }
     }
 
-    if (length(new_models) == 0 || step >= K) {
-      cat("No further AIC improvement. Stopping at step", step, "\n")
-      break
+    if (length(new_models) == 0L || step >= K) break
+
+    # Sort by AIC before truncating
+    aics <- vapply(new_models, function(x) x$AIC, numeric(1))
+    ord <- order(aics)
+    new_models <- new_models[ord]
+
+    # Keep best L
+    new_models <- new_models[seq_len(min(L, length(new_models)))]
+
+    # Save frontier
+    frontiers[[step]] <- new_models
+
+    # Save AIC dictionary
+    for (nm in new_models) {
+      key <- paste(sort(nm$variables), collapse = ",")
+      aic_by_model[[key]] <- nm$AIC
     }
 
-    models <- new_models[1:min(L, length(new_models))]
-    cat("Number of models kept:", length(models), "\n")
-    for (i in seq_along(models)) {
-      cat("Model", i, ":", paste(models[[i]]$variables, collapse = ", "),
-          "| AIC =", round(models[[i]]$AIC, 3), "\n")
-    }
-    step <- step + 1
+    models <- new_models
+    step <- step + 1L
   }
 
-  return(models)
+  list(
+    path_forest = frontiers,
+    aic_by_model = aic_by_model,
+    meta = list(K = K, epsilon = epsilon, delta = delta, L = L,
+                model_type = model_type)
+  )
 }
