@@ -18,190 +18,6 @@ adult$sex <- as.factor(adult$sex)
 adult$native.country <- as.factor(adult$native.country)
 adult$NA. <- as.factor(adult$NA.)
 
-
-
-colnames(adult)[15] <- "y"
-
-X <- adult
-
-
-
-```
-
-```{r}
-
-#test original code:
-
-test <- build_paths(data = adult[,1:14], response = adult[,15])
-build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25,
-                        model_type = NULL) {
-  # Auto-detect model type if not specified
-  if (is.null(model_type)) {
-    model_type <- detect_model_type(data, response)
-    cat("Detected model type:", model_type, "\n")
-  }
-
-  predictors <- setdiff(names(data), response)
-
-  # Internal model fitting helper
-  fit_model <- function(vars) {
-    formula_str <- paste(response, "~", ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
-    if (model_type == "linear") {
-      return(lm(as.formula(formula_str), data = data))
-    } else if (model_type == "logistic") {
-      return(glm(as.formula(formula_str), data = data, family = binomial))
-    }
-  }
-
-  start_fit <- fit_model(c())
-  models <- list(list(variables = c(), AIC = AIC(start_fit)))
-
-  step <- 1
-  repeat {
-    cat("\nStep", step, "\n")
-    new_models <- list()
-
-    for (m in models) {
-      current_vars <- m$variables
-      remaining_vars <- setdiff(predictors, current_vars)
-      if (length(remaining_vars) == 0) next
-
-      candidate_models <- list()
-      for (v in remaining_vars) {
-        new_vars <- c(current_vars, v)
-        suppressWarnings({
-          fit <- fit_model(new_vars)
-        })
-        aic_val <- AIC(fit)
-        candidate_models[[v]] <- list(variables = new_vars, AIC = aic_val)
-      }
-
-      aic_values <- sapply(candidate_models, function(x) x$AIC)
-      best_aic <- min(aic_values)
-      near_tie_models <- candidate_models[aic_values <= best_aic + delta]
-
-      if (best_aic < m$AIC - epsilon) {
-        new_models <- c(new_models, near_tie_models)
-      }
-    }
-
-    if (length(new_models) == 0 || step >= K) {
-      cat("No further AIC improvement. Stopping at step", step, "\n")
-      break
-    }
-
-    models <- new_models[1:min(L, length(new_models))]
-    cat("Number of models kept:", length(models), "\n")
-    for (i in seq_along(models)) {
-      cat("Model", i, ":", paste(models[[i]]$variables, collapse = ", "),
-          "| AIC =", round(models[[i]]$AIC, 3), "\n")
-    }
-    step <- step + 1
-  }
-
-  return(models)
-}
-
-
-
-```
-
-
-Section 3.1
-```{r}
-test <- build_paths(adult[,1:14], response = adult[,15])
-
-build_paths <- function(data, response, K = 5, epsilon = 1e-6, delta = 2, L = 25,
-                        model_type = NULL) {
-  # Auto-detect model type if not specified
-  detect_model_type <- function(data, response) {
-  y <- response
-  if (is.factor(y) || length(unique(y)) == 2) return("logistic")
-  if (is.numeric(y)) return("linear")
-  stop("Cannot detect model type automatically.")
-}
-  if (is.null(model_type)) {
-    model_type <- detect_model_type(data, response)
-    cat("Detected model type:", model_type, "\n")
-  }
-
-  predictors <- setdiff(names(data), response)
-
-  # Internal model fitting helper
-  fit_model <- function(vars) {
-    formula_str <- paste("income ~", ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
-    if (model_type == "linear") {
-      return(lm(as.formula(formula_str), data = data))
-    } else if (model_type == "logistic") {
-      return(glm(as.formula(formula_str), data = data, family = binomial))
-    }
-  }
-
-  # start from a null model
-  start_fit <- fit_model(c())
-  start_aic <- AIC(start_fit)
-  models <- list(list(variables = character(0), AIC = start_aic))
-  all_models <- models # store all models found
-
-  step <- 1
-  repeat {
-    cat("\nStep", step, "\n")
-    new_models <- list()
-
-    # for each model, expand by adding one new variable
-    for (m in models) {
-      current_vars <- m$variables
-      remaining_vars <- setdiff(predictors, current_vars)
-      if (length(remaining_vars) == 0) next
-
-      candidate_models <- list()
-      for (v in remaining_vars) {
-        new_vars <- c(current_vars, v)
-        suppressWarnings({
-          fit <- fit_model(new_vars)
-        })
-        candidate_models[[v]] <- list(variables = new_vars, AIC = AIC(fit))
-      }
-      
-      if(length(candidate_models) == 0) next
-
-      aic_values <- sapply(candidate_models, function(x) x$AIC)
-      best_aic <- min(aic_values)
-      improved <- candidate_models[aic_values < m$AIC - epsilon]
-      near_tie_models <- improved[aic_values[aic_values < m$AIC - epsilon] <= best_aic + delta]
-                        
-
-      if (length(near_tie_models) > 0) {
-        new_models <- c(new_models, near_tie_models)
-      }
-    }
-
-    if (length(new_models) == 0 || step >= K) {
-      cat("No further AIC improvement. Stopping at step", step, "\n")
-      break
-    }
-
-    new_models <- new_models[1:min(L, length(new_models))]
-    
-    cat("Number of models kept:", length(models), "\n")
-    for (i in seq_along(models)) {
-      cat("Model", i, ":", paste(models[[i]]$variables, collapse = ", "),
-          "| AIC =", round(models[[i]]$AIC, 3), "\n")
-    }
-    models <- new_models
-    all_models <- c(all_models, new_models)
-    step <- step + 1
-  }
-  
-  unique_keys <- vapply(all_models, function(m) paste(sort(m$variables), collapse = "+"), "")
-  all_models <- all_models[!duplicated(unique_keys)]
-
-  return(all_models = all_models)
-}
-
-build_paths(data = adult, response = y)
-
-
 ```
 
 Section 3.2
@@ -252,11 +68,6 @@ stability <- function(data, response, B = 100, K = 5, epsilon = 1e-6,
 }
 ```
 
-Section 3.3
-```{r}
-
-```
-
 Savannah's edits to build paths:
 ```{r}
 # Edit build paths
@@ -283,7 +94,6 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25,
   response_name <- "response"
 
   # --- Model fitting helper ---
-  # *** input vars is the colnames of variables? **** yes I think so
   fit_model <- function(vars) {
     formula_str <- paste(response_name, "~",
                          ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
@@ -303,6 +113,7 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25,
   all_models <- list(list(variables = names(null_fit$coefficients), fit = null_fit, AIC = null_aic))
   
   start_models <- list()
+  start_aic <- list()
   
   k <- 1
     
@@ -318,7 +129,7 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25,
         suppressWarnings({
           start_fit[[i]] <- try(fit_model(predictors[i]), silent = TRUE)
         })
-        if (inherits(fit[[i]], "try-error")) next
+        if (inherits(start_fit[[i]], "try-error")) next
         
         # calculate AIC for 1 predictor models
         start_aic[i] <- AIC(start_fit[[i]])
@@ -327,11 +138,11 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25,
         
         # save info for 1 predictor models, add to total model list, move to k = 2
         start_models <- list(variables = predictors, fit = start_fit, AIC = start_aic)
-        all_models <- append(all_models, list(start_models))
         k <- k+1
         
-      } else{
+      } else if(k == 2){
         
+      # takes the variables from the 1 variables models
       current_vars <- start_models$variables
   
       vars_diff <- list()
@@ -343,12 +154,9 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25,
       # this identifies the new variables that need to be added one by one to each model
       vars_diff[[b]] <- setdiff(predictors, current_vars[b])
       
-      # for each model b, make a list of combinations that includes each of 
+      # for each parent model, make a list of new combinations that add one more variable
       child_combos[[b]] <- lapply(vars_diff[[b]], function(x) append(x, current_vars[b]))
       }
-      
-      # make a list to contain all child models
-      child_models
       
       # make a list to contain child models
       child_fit <- list()
@@ -368,19 +176,54 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25,
         child_fit_aic[[b]] <- lapply(child_fit[[b]], AIC)
         
       }
+      
+        # make a list of each minimum aic for each set of models to use for filter
+        child_min <- list()
+        for(b in 1:length(child_fit_aic[[1]])){
+          
+        child_min[[b]] <- min(as.numeric(child_fit_aic[[b]]))
+       
+         }
         
         # compare AIC between child models and parent models
-      extract_child_aic <- list()
+      extract_child_aic <- lapply(child_fit_aic, function(x) rep(NA, length(x)))
+
+      for(b in seq_along(child_fit_aic)){
+      for(c in seq_along(child_fit_aic[[b]])){
+    
+    aic_value  <- as.numeric(child_fit_aic[[b]][[c]])     # FIX
+    min_value  <- as.numeric(child_min[[1]])
+    start_val  <- as.numeric(start_aic[b])
+    
+    if(aic_value <= (min_value + delta) &&
+       aic_value <= (start_val - epsilon)) {
+      
+      extract_child_aic[[b]][c] <- aic_value
+      # this gives me lists for each 
+    }
+  }
+}
+
+      
+      
+      
+      
+      
+      
+      
       
       for(b in 1:length(child_fit_aic)){
         
-        extract_child_aic <- child_fit_aic[[b]]
+        for(c in 1:length(child_fit_aic[[1]])){
+          
+        if(as.numeric(child_fit_aic[[b]][c]) <= (as.numeric(child_min[[b]]) + delta) & as.numeric(child_fit_aic[[b]][c]) < (as.numeric(start_aic[b]) - epsilon)){
         
-        for(c in 1:length(extract_child_aic)){
+          extract_child_aic[[c]] <- child_fit_aic[[b]][c]
           
-        if(as.numeric(extract_child_aic[[c]]) > (start_models$AIC[b] - delta) & as.numeric(extract_child_aic[[b]]) < (start_models$AIC[b] + delta)){
-          
-          child_retain[[c]] <- list(child_fit[[c]], child_combos[[c]])
+        }
+        }}
+      
+          child_retain[[b]] <- list(child_fit[[c]], child_combos[[c]])
           
         }
       }
@@ -420,7 +263,9 @@ for (b in seq_along(child_fit_aic)) {
         child = c
       )
     }
-  }
+    }
+  
+  path_forest <- list("frontiers" = list(start_models, )), aic_by_model)
 }
    
       
@@ -495,21 +340,138 @@ build_paths(data = adult[,1:14], response = adult[,15], K = 5, epsilon = 10, del
 
 ```
 
-Version 1 for Part 3 Plausible Models
+# updated build paths
 ```{r}
+# how is nimra testing the code?
+multi_path_forward(data = adult[,1:14], response = adult[,15])
+multi_path_forward <- function(data, response,
+                               K = 5, epsilon = 1e-6, delta = 2, L = 25,
+                               model_type = NULL) {
 
+  # --- Local helper: detect model type (not exported) -----------------------
+  detect_model_type <- function(data, response) {
+    y <- data[[response]]
+    if (is.factor(y) && nlevels(y) == 2) return("logistic")
+    if (is.logical(y)) return("logistic")
+    if (is.numeric(y)) {
+      uy <- unique(stats::na.omit(y))
+      if (length(uy) <= 2 && all(uy %in% c(0, 1))) return("logistic")
+    }
+    "linear"
+  }
 
-plausible_models()
+  # --- Auto-detect model type if needed ------------------------------------
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(data, response)
+    cat("Detected model type:", model_type, "\n")
+  } else {
+    model_type <- match.arg(tolower(model_type), c("linear", "logistic"))
+  }
+
+  predictors <- setdiff(names(data), response)
+
+  # --- Fit function ---------------------------------------------------------
+  fit_model <- function(vars) {
+    formula_str <- paste(
+      response, "~",
+      ifelse(length(vars) == 0, "1", paste(vars, collapse = "+"))
+    )
+    f <- stats::as.formula(formula_str)
+
+    if (model_type == "linear") {
+      stats::lm(f, data = data)
+    } else {
+      stats::glm(f, data = data, family = stats::binomial())
+    }
+  }
+
+  # --- Initialize -----------------------------------------------------------
+  start_fit <- fit_model(character())
+  start_aic <- stats::AIC(start_fit)
+
+  models <- list(list(variables = character(), AIC = start_aic))
+  frontiers <- list()
+  aic_by_model <- list()
+
+  step <- 1L
+  repeat {
+    new_models <- list()
+    model_hash <- character()
+
+    for (m in models) {
+      current_vars <- m$variables
+      remaining_vars <- setdiff(predictors, current_vars)
+      if (length(remaining_vars) == 0L) next
+
+      candidate_models <- list()
+      for (v in remaining_vars) {
+        new_vars <- c(current_vars, v)
+        key <- paste(sort(new_vars), collapse = ",")
+
+        if (key %in% model_hash) next
+
+        fit <- try(suppressWarnings(fit_model(new_vars)), silent = TRUE)
+        if (inherits(fit, "try-error")) next
+
+        aic_val <- stats::AIC(fit)
+        if (!is.finite(aic_val)) next
+
+        candidate_models[[key]] <- list(variables = new_vars, AIC = aic_val)
+        model_hash <- c(model_hash, key)
+      }
+
+      if (length(candidate_models) == 0L) next
+
+      aic_values <- vapply(candidate_models, function(x) x$AIC, numeric(1))
+      best_aic <- min(aic_values)
+
+      # Keep only near-best children
+      selected <- candidate_models[aic_values <= best_aic + delta]
+
+      # Only if parent improves by > ε
+      if (best_aic < m$AIC - epsilon) {
+        new_models <- c(new_models, selected)
+      }
+    }
+
+    if (length(new_models) == 0L || step >= K) break
+
+    # Sort by AIC before truncating
+    aics <- vapply(new_models, function(x) x$AIC, numeric(1))
+    ord <- order(aics)
+    new_models <- new_models[ord]
+
+    # Keep best L
+    new_models <- new_models[seq_len(min(L, length(new_models)))]
+
+    # Save frontier
+    frontiers[[step]] <- new_models
+
+    # Save AIC dictionary
+    for (nm in new_models) {
+      key <- paste(sort(nm$variables), collapse = ",")
+      aic_by_model[[key]] <- nm$AIC
+    }
+
+    models <- new_models
+    step <- step + 1L
+  }
+
+  list(
+    path_forest = frontiers,
+    aic_by_model = aic_by_model,
+    meta = list(K = K, epsilon = epsilon, delta = delta, L = L,
+                model_type = model_type)
+  )
+}
+
 ```
 
 
-
-
-
-
-
-
-
+3.3 Plausible Models
+```{r}
+plausible_models
+```
 
 
 

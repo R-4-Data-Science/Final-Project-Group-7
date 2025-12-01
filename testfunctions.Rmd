@@ -1,0 +1,164 @@
+---
+title: "testfunctions"
+output: html_document
+---
+
+```{r}
+adult_csv <- read.csv("/Users/srascon/Downloads/6210/git/HW2_Group14/adult.csv", sep = ";")
+adult <- data.frame(adult_csv)
+adult <- adult[,-1]
+
+# change character columns to factor
+adult$workclass <- as.factor(adult$workclass)
+adult$education <- as.factor(adult$education)
+adult$marital.status <- as.factor(adult$marital.status)
+adult$occupation <- as.factor(adult$occupation)
+adult$relationship <- as.factor(adult$relationship)
+adult$race <- as.factor(adult$race)
+adult$sex <- as.factor(adult$sex)
+adult$native.country <- as.factor(adult$native.country)
+adult$NA. <- as.factor(adult$NA.)
+
+```
+
+
+
+```{r}
+multi_path_forward(data = adult[,1:14], response = adult[,15])
+
+multi_path_forward <- function(data, response,
+                               K = 5, epsilon = 1e-6, delta = 2, L = 25,
+                               model_type = NULL) {
+
+  # --- Local helper: detect model type (not exported) -----------------------
+  detect_model_type <- function(data, response) {
+    y <- response
+    if (is.factor(y) && nlevels(y) == 2) return("logistic")
+    if (is.logical(y)) return("logistic")
+    if (is.numeric(y)) {
+      uy <- unique(stats::na.omit(y))
+      if (length(uy) <= 2 && all(uy %in% c(0, 1))) return("logistic")
+    }
+    "linear"
+  }
+
+  # --- Auto-detect model type if needed ------------------------------------
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(data, response)
+    cat("Detected model type:", model_type, "\n")
+  } else {
+    model_type <- match.arg(tolower(model_type), c("linear", "logistic"))
+  }
+
+  predictors <- setdiff(names(data), response)
+
+  # --- Fit function ---------------------------------------------------------
+ # fit_model <- function(vars) {
+    #formula_str <- paste(
+       response, "~",
+      ifelse(length(vars) == 0, "1", paste(vars, collapse = "+"))
+    )
+    f <- stats::as.formula(formula_str)
+
+    if (model_type == "linear") {
+      stats::lm(f, data = data)
+    } else {
+      stats::glm(f, data = data, family = stats::binomial())
+    }
+ # }
+  
+    fit_model <- function(vars) {
+    formula_str <- paste(response_name, "~",
+                         ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
+    
+    if (model_type == "linear") {
+      return(lm(as.formula(formula_str), data = data))
+    } else {
+      return(glm(as.formula(formula_str), data = data, family = binomial))
+    }
+  }
+
+  # --- Initialize -----------------------------------------------------------
+  # null models
+  start_fit <- fit_model(character())
+  start_aic <- stats::AIC(start_fit)
+
+  models <- list(list(variables = character(), AIC = start_aic))
+  frontiers <- list()
+  aic_by_model <- list()
+
+  step <- 1L
+  repeat {
+    new_models <- list()
+    model_hash <- character()
+
+    for (m in models) {
+      current_vars <- m$variables
+      remaining_vars <- setdiff(predictors, current_vars)
+      if (length(remaining_vars) == 0L) next
+
+      candidate_models <- list()
+      for (v in remaining_vars) {
+        new_vars <- c(current_vars, v)
+        key <- paste(sort(new_vars), collapse = ",")
+
+        if (key %in% model_hash) next
+
+        fit <- try(suppressWarnings(fit_model(new_vars)), silent = TRUE)
+        if (inherits(fit, "try-error")) next
+
+        aic_val <- stats::AIC(fit)
+        if (!is.finite(aic_val)) next
+
+        candidate_models[[key]] <- list(variables = new_vars, AIC = aic_val)
+        model_hash <- c(model_hash, key)
+      }
+
+      if (length(candidate_models) == 0L) next
+
+      aic_values <- vapply(candidate_models, function(x) x$AIC, numeric(1))
+      best_aic <- min(aic_values)
+
+      # Keep only near-best children
+      selected <- candidate_models[aic_values <= best_aic + delta]
+
+      # Only if parent improves by > ε
+      if (best_aic < m$AIC - epsilon) {
+        new_models <- c(new_models, selected)
+      }
+    }
+
+    if (length(new_models) == 0L || step >= K) break
+
+    # Sort by AIC before truncating
+    aics <- vapply(new_models, function(x) x$AIC, numeric(1))
+    ord <- order(aics)
+    new_models <- new_models[ord]
+
+    # Keep best L
+    new_models <- new_models[seq_len(min(L, length(new_models)))]
+
+    # Save frontier
+    frontiers[[step]] <- new_models
+
+    # Save AIC dictionary
+    for (nm in new_models) {
+      key <- paste(sort(nm$variables), collapse = ",")
+      aic_by_model[[key]] <- nm$AIC
+    }
+
+    models <- new_models
+    step <- step + 1L
+  }
+
+ final_output<- list(
+    path_forest = frontiers,
+    aic_by_model = aic_by_model,
+    meta = list(K = K, epsilon = epsilon, delta = delta, L = L,
+                model_type = model_type)
+  )
+}
+
+final_output
+```
+
