@@ -36,9 +36,8 @@ multi_path_forward <- function(data, response,
                                K = 5, epsilon = 1e-6, delta = 2, L = 25,
                                model_type = NULL) {
 
-  # --- Local helper: detect model type (not exported) -----------------------
-  detect_model_type <- function(data, response) {
-    y <- data[[response]]
+  # ---- Local helper: detect model type -------------------------------------
+  detect_model_type <- function(y) {
     if (is.factor(y) && nlevels(y) == 2) return("logistic")
     if (is.logical(y)) return("logistic")
     if (is.numeric(y)) {
@@ -48,9 +47,9 @@ multi_path_forward <- function(data, response,
     "linear"
   }
 
-  # --- Auto-detect model type if needed ------------------------------------
+  # ---- Auto-detect model type ----------------------------------------------
   if (is.null(model_type)) {
-    model_type <- detect_model_type(data, response)
+    model_type <- detect_model_type(data[[response]])
     cat("Detected model type:", model_type, "\n")
   } else {
     model_type <- match.arg(tolower(model_type), c("linear", "logistic"))
@@ -58,7 +57,7 @@ multi_path_forward <- function(data, response,
 
   predictors <- setdiff(names(data), response)
 
-  # --- Fit function ---------------------------------------------------------
+  # ---- Model fitting helper ------------------------------------------------
   fit_model <- function(vars) {
     formula_str <- paste(
       response, "~",
@@ -73,15 +72,23 @@ multi_path_forward <- function(data, response,
     }
   }
 
-  # --- Initialize -----------------------------------------------------------
+  # ---- Initialize with intercept-only model --------------------------------
   start_fit <- fit_model(character())
   start_aic <- stats::AIC(start_fit)
 
-  models <- list(list(variables = character(), AIC = start_aic))
+  models <- list(
+    list(
+      variables = character(),
+      AIC = start_aic,
+      fit = start_fit
+    )
+  )
+
   frontiers <- list()
   aic_by_model <- list()
 
   step <- 1L
+
   repeat {
     new_models <- list()
     model_hash <- character()
@@ -92,31 +99,39 @@ multi_path_forward <- function(data, response,
       if (length(remaining_vars) == 0L) next
 
       candidate_models <- list()
+
       for (v in remaining_vars) {
         new_vars <- c(current_vars, v)
         key <- paste(sort(new_vars), collapse = ",")
 
         if (key %in% model_hash) next
 
-        fit <- try(suppressWarnings(fit_model(new_vars)), silent = TRUE)
+        fit <- try(
+          suppressWarnings(fit_model(new_vars)),
+          silent = TRUE
+        )
         if (inherits(fit, "try-error")) next
 
         aic_val <- stats::AIC(fit)
         if (!is.finite(aic_val)) next
 
-        candidate_models[[key]] <- list(variables = new_vars, AIC = aic_val)
+        candidate_models[[key]] <- list(
+          variables = new_vars,
+          AIC = aic_val,
+          fit = fit
+        )
         model_hash <- c(model_hash, key)
       }
 
       if (length(candidate_models) == 0L) next
 
-      aic_values <- vapply(candidate_models, function(x) x$AIC, numeric(1))
-      best_aic <- min(aic_values)
+      aic_vals <- vapply(candidate_models, `[[`, numeric(1), "AIC")
+      best_aic <- min(aic_vals)
 
-      # Keep only near-best children
-      selected <- candidate_models[aic_values <= best_aic + delta]
+      # ---- Keep near-optimal children ---------------------------------------
+      selected <- candidate_models[aic_vals <= best_aic + delta]
 
-      # Only if parent improves by > ε
+      # ---- Progress only if parent improves ---------------------------------
       if (best_aic < m$AIC - epsilon) {
         new_models <- c(new_models, selected)
       }
@@ -124,21 +139,18 @@ multi_path_forward <- function(data, response,
 
     if (length(new_models) == 0L || step >= K) break
 
-    # Sort by AIC before truncating
-    aics <- vapply(new_models, function(x) x$AIC, numeric(1))
+    # ---- Sort & truncate ----------------------------------------------------
+    aics <- vapply(new_models, `[[`, numeric(1), "AIC")
     ord <- order(aics)
     new_models <- new_models[ord]
-
-    # Keep best L
     new_models <- new_models[seq_len(min(L, length(new_models)))]
 
-    # Save frontier
     frontiers[[step]] <- new_models
 
-    # Save AIC dictionary
-    for (nm in new_models) {
-      key <- paste(sort(nm$variables), collapse = ",")
-      aic_by_model[[key]] <- nm$AIC
+    # ---- Save AIC dictionary ------------------------------------------------
+    for (m in new_models) {
+      key <- paste(sort(m$variables), collapse = ",")
+      aic_by_model[[key]] <- m$AIC
     }
 
     models <- new_models
@@ -148,7 +160,13 @@ multi_path_forward <- function(data, response,
   list(
     path_forest = frontiers,
     aic_by_model = aic_by_model,
-    meta = list(K = K, epsilon = epsilon, delta = delta, L = L,
-                model_type = model_type)
+    meta = list(
+      K = K,
+      epsilon = epsilon,
+      delta = delta,
+      L = L,
+      model_type = model_type
+    )
   )
 }
+

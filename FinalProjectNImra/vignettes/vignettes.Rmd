@@ -3,12 +3,11 @@ title: "Multi-Path AIC Model Selection"
 author: "Nimra Ismail"
 output:
   html_document:
-    theme: yeti
-    toc: false            # disable default TOC
+    css: autumn.css
+    toc: true
     toc_depth: 3
-    toc_float: false
-    number_sections: true
-    css: custom.css
+    toc_float: true
+    number_sections: True
     fig_caption: true
     highlight: tango    # Colorful syntax highlighting
 vignette: >
@@ -16,11 +15,6 @@ vignette: >
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
-
-```{r toc, echo=FALSE}
-cat('<div id="toc">')
-cat('</div>')
-```
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
@@ -33,26 +27,68 @@ set.seed(123)
 
 # Introduction
 
-This vignette demonstrates the use of the **FinalProjectNimra** R package for performing a complete model selection pipeline based on the **multi-path AIC procedure**.  
-The package implements an advanced model selection algorithm that explores multiple near-optimal model paths, evaluates variable stability via bootstrap resampling, and filters plausible models based on both AIC and variable stability.
+This vignette demonstrates the use of the **FinalProjectNimra** package to perform a complete model selection pipeline based on a **multi-path AIC procedure**.  
 
-The vignette illustrates:
+The package implements an advanced workflow that:
 
-1. The workflow of the algorithm (multi-path selection, stability estimation, plausible model filtering).  
-2. Its application on the **Breast Cancer Wisconsin dataset** for a **logistic regression** task.  
-3. Evaluation of **model accuracy and diagnostic performance** metrics.
+1. Explores **multiple forward-selection paths** using AIC (`multi_path_forward()`),  
+2. Quantifies **variable stability** via bootstrap resampling (`stability()`), and  
+3. Filters a **plausible model set** using both AIC and average stability (`select_plausible_models()`), optionally providing fitted models for prediction.
 
-# Dataset
+We illustrate the workflow on the **Breast Cancer Wisconsin** dataset for **logistic regression**, including:
 
-We use the **Breast Cancer Wisconsin** dataset for binary classification.  
-The goal is to distinguish **malignant (1)** vs **benign (0)** tumors based on several cell-nuclei features.
+- train/test split,  
+- multi-path AIC search and stability analysis,  
+- plausible model selection with AIC tolerance (Δ) and stability threshold (τ),  
+- test-set evaluation using a confusion matrix and performance metrics.
 
-```{r data}
+At the end, we summarize how the package functions correspond to the project rubric’s function names and provide additional synthetic examples.
+
+## Mapping rubric names to package functions
+
+In the project description, the three core functions are called:
+
+- `build_paths()` – multi-path forward selection,  
+- `stability()` – resampling-based stability,  
+- `plausible_models()` – AIC + stability-based plausible model selection.
+
+In this package, they are implemented as:
+
+- `multi_path_forward()`  ← rubric’s **build_paths()**,  
+- `stability()`           ← rubric’s **stability()**,  
+- `select_plausible_models()`  ← rubric’s **plausible_models()**.
+
+Additionally, there is a convenience wrapper:
+
+- `multi_path_AIC_procedure()`  
+  which runs the full pipeline (search → stability → plausible models) in one call and returns a list containing:
+  - `$full_paths` – output of `multi_path_forward()`,  
+  - `$stability` – output of `stability()`,  
+  - `$plausible_models` – final plausible model table.
+# Breast Cancer Example (Main Vignette)
+
+## Data loading and preprocessing
+
+We use the **Breast Cancer Wisconsin** dataset from the **mlbench** package. The goal is to classify tumors as **malignant** (1) vs **benign** (0) based on several cell-nuclei features.
+
+```{r data, echo = FALSE}
+# Load breast cancer dataset
 data("BreastCancer", package = "mlbench")
-df <- na.omit(BreastCancer)
-df$Class <- ifelse(df$Class == "malignant", 1, 0)
-df <- df %>% mutate(across(where(is.factor), as.numeric))
-head(df)
+df <- BreastCancer
+
+# Clean and preprocess
+df <- df %>%
+  select(-Id) %>%                         # Drop ID column
+  filter(complete.cases(.)) %>%          # Remove rows with missing values
+  mutate(across(-Class, as.numeric)) %>% # Convert predictors to numeric
+  mutate(Class = factor(Class))          # Ensure response is factor
+
+# Rename response to "Diagnosis" for clarity
+names(df)[names(df) == "Class"] <- "Diagnosis"
+
+# Confirm structure
+str(df)
+
 ```
 
 The dataset contains predictors describing characteristics of cell nuclei and a binary target variable indicating whether the tumor is **malignant** or **benign**.
@@ -61,11 +97,12 @@ The dataset contains predictors describing characteristics of cell nuclei and a 
 
 We split the data into **70% training** and **30% testing** subsets to evaluate model performance on unseen data.
 
-```{r split}
-train_index <- createDataPartition(df$Class, p = 0.7, list = FALSE)
-train_data <- df[train_index, ]
-test_data <- df[-train_index, ]
-dim(train_data); dim(test_data)
+```{r split , echo = FALSE}
+set.seed(123)
+n <- nrow(df)
+train_idx <- sample(n, size = round(0.7 * n))
+train_data <- df[train_idx, ]
+test_data  <- df[-train_idx, ]
 ```
 
 This ensures that both subsets maintain class balance for fair model evaluation.
@@ -77,37 +114,82 @@ The parameters used are summarized below:
 
 | Parameter | Description | Value Used |
 |------------|--------------|-------------|
-| K | Number of paths explored | 4 |
+| K | Number of paths explored | 5 |
 | B | Bootstrap replicates for stability estimation | 50 |
-| δ (delta) | AIC threshold for near-optimal models | 1 |
+| δ (delta) | AIC threshold for near-optimal models | 2 |
 | τ (tau) | Stability cutoff for plausible model inclusion | 0.6 |
 
 > **Note:**
 
 These values provide a balanced trade-off between computational efficiency and exploration depth. The AIC tolerance (`delta = 1`) ensures that near-optimal models are retained, while the stability threshold (`tau = 0.6`) filters predictors that consistently appear in at least 60% of bootstrap samples. Parameters `eps` and `L` are left at default values (`eps = 1e-6`, `L = 50`), which are sufficient for this dataset size.
-.
 
-```{r search}
-res_logistic <- multi_path_AIC_procedure(
-  train_data,
-  response = "Class",
-  K = 4,
-  B = 50,
-  delta = 1,
-  tau = 0.6
+```{r search , echo = FALSE}
+# Run multi-path search on training data
+res_logistic <- multi_path_forward(
+  data = train_data,
+  response = "Diagnosis",
+  K = 5,
+  delta = 2,
+  L = 50,
+  model_type = "logistic"
 )
 
-res_logistic$plausible_models
+# Inspect number of models per step
+sapply(res_logistic$path_forest, length)
+
 ```
 
 δ = 1 defines models whose AIC values are within one unit of the minimum, meaning they are statistically indistinguishable from the best model.
 
-# Stability Visualization
+# Stability Estimation (Bootstrap)
+
+```{r}
+# Estimate stability using 50 bootstrap replicates
+res_stability <- stability(
+  data = train_data,
+  response = "Diagnosis",
+  B = 50,
+  K = 5,
+  delta = 2,
+  L = 50,
+  model_type = "logistic"
+)
+
+# Print top stable features
+print(res_stability)
+
+```
+## Stability Visualization
 
 The variable stability plot shows how frequently each predictor appears across bootstrap samples. High stability indicates robust predictors that consistently contribute to good model fits.
 
-```{r plot, fig.cap="Figure 1: Variable stability scores across bootstrap samples."}
-plot_stability(res_logistic$stability)
+```{r}
+# Visualize stability scores
+library(ggplot2)
+
+# Prepare data frame for plotting
+stab_df <- data.frame(
+  Predictor = names(res_stability$pi),
+  Stability = res_stability$pi
+)
+
+stab_df <- stab_df %>%
+  arrange(desc(Stability)) %>%
+  mutate(Predictor = factor(Predictor, levels = Predictor))  # preserve order
+
+# Plot
+ggplot(stab_df, aes(x = Predictor, y = Stability)) +
+  geom_col(fill = "steelblue") +
+  geom_hline(yintercept = 0.6, linetype = "dashed", color = "red") +
+  labs(
+    title = "Variable Selection Stability (πⱼ)",
+    subtitle = "Dashed line = 0.6 stability threshold",
+    y = "Average Stability (πⱼ)",
+    x = "Predictor"
+  ) +
+  coord_flip() +
+  theme_minimal()
+
 ```
 
 ***Interpretation:***
@@ -120,8 +202,32 @@ On the other hand, features like Bl.cromatin, Marg.adhesion, Mitoses, Normal.nuc
 
 Overall, the stability plot highlights Bare.nuclei and Cell.size as the most critical and reproducible predictors across resampled models.
 
+# Select Plausible Models (AIC + Stability)
 
-# Model Evaluation on Test Data
+```{r}
+# Filter plausible models with AIC + Stability thresholds
+plausible <- select_plausible_models(
+  full_data_models = res_logistic,
+  stability_obj = res_stability,
+  delta_AIC = 2,
+  tau = 0.5,
+  keep_fits = TRUE
+)
+
+# Show resulting plausible models
+print(plausible)
+
+# plotting
+#ggplot(stab_df, aes(x = Stability)) +
+#  geom_histogram(binwidth = 0.05, fill = "purple", color = "white") +
+ # geom_vline(xintercept = 0.6, color = "red", linetype = "dashed") +
+#  labs(title = "Distribution of Predictor Stabilities", x = "πⱼ", y = "Count")
+
+
+```
+
+
+## Evaluate Each Plausible Model (on Test Set)
 
 We now evaluate the **most stable plausible model** on the held-out test set. The model is fitted on the training data using the predictors identified from the multi-path AIC procedure and then validated on the test data.
 
@@ -131,26 +237,18 @@ Although **Δ** (Delta) is not explicitly specified in our vignette code, it is 
 
 Similarly, the stability threshold **τ = 0.6** is used to filter models based on the consistency of variable selection across bootstrap resamples. Variables that appear in at least 60% of resampled models are retained as stable predictors. This threshold balances parsimony and robustness by emphasizing predictors that contribute reliably to model performance across sampling variability [(Meinshausen & Bühlmann, 2010)](https://doi.org/10.1214/09-AOS687).
 
-```{r eval}
-top_model_vars <- res_logistic$plausible_models[[1]]$variables
-formula_str <- as.formula(paste("Class ~", paste(top_model_vars, collapse = "+")))
-final_fit <- glm(formula_str, data = train_data, family = binomial)
+```{r}
+# Apply confusion metrics on each plausible model
+evaluation <- lapply(plausible$fit, function(mod) {
+  confusion_metrics(mod, data = test_data)
+})
 
-# Predict on test data
-pred_probs <- predict(final_fit, test_data, type = "response")
-pred_class <- ifelse(pred_probs > 0.5, 1, 0)
+# Display metrics for each plausible model
+for (i in seq_along(evaluation)) {
+  cat("\nModel", i, "-", plausible$variables[i], "\n")
+  print(evaluation[[i]]$metrics)
+}
 
-# Confusion matrix and performance metrics
-conf_matrix <- table(Predicted = pred_class, Actual = test_data$Class)
-conf_matrix
-
-accuracy <- mean(pred_class == test_data$Class)
-sensitivity <- conf_matrix["1","1"] / sum(conf_matrix[,"1"])
-specificity <- conf_matrix["0","0"] / sum(conf_matrix[,"0"])
-FDR <- 1 - specificity
-DOR <- (sensitivity / (1 - sensitivity)) / ((1 - specificity) / specificity)
-
-data.frame(accuracy, sensitivity, specificity, FDR, DOR)
 ```
 
 ***Interpretation:***
@@ -202,4 +300,3 @@ Additionally, the earlier **stability analysis** revealed that features such as 
 The multi-path AIC–based selection framework provides a powerful and interpretable solution for identifying reliable predictors of breast cancer malignancy.  
 
 It ensures that the final model is not only statistically optimal (in terms of AIC) but also **clinically meaningful**, achieving strong predictive performance with stable and biologically relevant variables.
-
