@@ -355,25 +355,29 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, m
 ```{r}
 X <- adult[,1:14]
 response <- adult[,15]
-adult[,"NA."]
+adult$NA. <- as.factor(adult$NA.)
+response <- 
 
 path_forest <- build_paths(X = adult, response = "NA.")
 build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, model_type = NULL) {
 
+  
   # --- Auto-detect model type ---
-  detect_model_type <- function(X[[response]]) {
-    if (is.factor(response) || length(unique(response)) == 2) return("logistic")
-    if (is.numeric(response)) return("linear")
-    stop("Cannot detect model type automatically.")
-  }
+  detect_model_type <- function(data, response_name) {
+  y <- data[[response_name]]
+
+  if (is.factor(y) || length(unique(y)) == 2) return("logistic")
+  if (is.numeric(y)) return("linear")
+  stop("Cannot detect model type automatically.")
+}
 
   if (is.null(model_type)) {
-    model_type <- detect_model_type(response)
+    model_type <- detect_model_type(X, response)
     cat("Detected model type:", model_type, "\n")
   }
-
+  
   predictors <- colnames(X)
-  predictors <- predictors[predictors != response]  # exclude response
+  predictors <- setdiff(predictors, response)  # exclude response
 
   # --- Model fitting helper ---
   fit_model <- function(vars) {
