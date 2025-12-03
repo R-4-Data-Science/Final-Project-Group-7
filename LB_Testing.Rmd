@@ -2,4 +2,361 @@
 title: "LB_Testing"
 output: html_document
 ---
+```{r}
+adult <- read.csv("~/Desktop/Statistics/adult.csv", 
+                  sep = ";", 
+                  header = FALSE,
+                  strip.white = TRUE)
+
+colnames(adult) <- c(
+  "index", "age", "workclass", "fnlwgt", "education", "education.num",
+  "marital.status", "occupation", "relationship", "race", "sex",
+  "capital.gain", "capital.loss", "hours.per.week", "native.country", "income"
+)
+
+adult <- adult[ , -1]   # remove row index column
+
+# convert factors where needed
+adult$workclass       <- as.factor(adult$workclass)
+adult$education       <- as.factor(adult$education)
+adult$marital.status  <- as.factor(adult$marital.status)
+adult$occupation      <- as.factor(adult$occupation)
+adult$relationship    <- as.factor(adult$relationship)
+adult$race            <- as.factor(adult$race)
+adult$sex             <- as.factor(adult$sex)
+adult$native.country  <- as.factor(adult$native.country)
+adult$income          <- as.factor(adult$income)
+
+```
+
+```{r}
+# Edit build paths
+build_paths <- function(X, response, K = 3, epsilon = 10, delta = 200, L = 25, model_type = NULL){
+  
+  # --- Auto-detect model type ---
+  detect_model_type <- function(response) {
+    y <- response
+    if (is.factor(y) || length(unique(y)) == 2) return("logistic")
+    if (is.numeric(y)) return("linear")
+    stop("Cannot detect model type automatically.")
+  }
+
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(response)
+    cat("Detected model type:", model_type, "\n")
+  }
+
+  predictors <- colnames(X)
+  response_name <- "response"
+
+  # --- Model fitting helper ---
+  fit_model <- function(vars) {
+    df <- data.frame(X, response = response)
+    
+    formula_str <- paste(response_name, "~",
+              ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
+    
+    if (model_type == "linear") {
+      return(lm(as.formula(formula_str), data = df))
+    } else {
+      return(glm(as.formula(formula_str), data = df, family = binomial))
+    }
+  }
+  
+  # --- Start with null model ---
+  null_fit <- fit_model(character())
+  null_aic <- AIC(null_fit)
+  null_vars <- c()
+  
+  # all_models is a list that contains lists for each set of models. The first list set is an entry for the null model which only contains the intercept.
+  all_models <- list(list(variables = names(null_fit$coefficients), fit = null_fit, AIC = null_aic))
+  
+  start_models <- list()
+  start_aic <- list()
+  
+  k <- 1
+  frontiers <- list()
+  aic_by_model <- list()
+    
+    for (a in 1:K) {
+      
+      if(k == 1){
+        
+        start_fit <- list()
+        
+        # make 1 predictor models
+        for(i in 1:length(predictors)){
+        
+        suppressWarnings({
+          start_fit[[i]] <- try(fit_model(predictors[i]), silent = TRUE)
+        })
+        if (inherits(start_fit[[i]], "try-error")) next
+        
+        # calculate AIC for 1 predictor models
+        start_aic[i] <- AIC(start_fit[[i]])
+        
+        }
+        
+        # save info for 1 predictor models, add to total model list, move to k = 2
+        start_models <- list(variables = predictors, fit = start_fit, AIC = start_aic)
+       
+        frontiers[[k]] <- start_models$variables
+        aic_by_model[[k]] <- start_aic
+        
+         k <- k+1
+        
+      } else if(k == 2){
+        
+      # takes the variables from the 1 variables models
+      current_vars <- start_models$variables
+  
+      vars_diff <- list()
+      child_combos <- list()
+      
+      # determine sets of variables that make up the child combinations for this dimension
+      for(b in 1:length(current_vars)){
+      
+      # this identifies the new variables that need to be added one by one to each model
+      vars_diff[[b]] <- setdiff(predictors, current_vars[b])
+      
+      # for each parent model, make a list of new combinations that add one more variable
+      child_combos[[b]] <- lapply(vars_diff[[b]], function(x) append(x, current_vars[b]))
+      }
+      
+      # make a list to contain child models
+      child_fit <- list()
+      
+      # make a list to contain child AIC
+      child_fit_aic <- list()
+      
+      # models retained after comparison to parent
+      child_retain <- list()
+      
+      for(b in 1:length(child_combos)){
+        
+        # fit child models for each parent model
+        child_fit[[b]] <- lapply(child_combos[[b]], fit_model)
+        
+        # calculate AIC for each child model
+        child_fit_aic[[b]] <- lapply(child_fit[[b]], AIC)
+        
+      }
+      
+        # make a list of each minimum aic for each set of models to use for filter
+        child_min <- list()
+        for(b in 1:length(child_fit_aic[[b]])){
+          
+        child_min[[b]] <- min(as.numeric(child_fit_aic[[b]]))
+       
+         }
+        
+        # compare AIC between child models and parent models
+      extract_child_aic <- lapply(child_fit_aic, function(x) rep(NA, length(x)))
+
+      for(b in seq_along(child_fit_aic)){
+      for(c in seq_along(child_fit_aic[[b]])){
+    
+        
+    aic_value  <- as.numeric(child_fit_aic[[b]][[c]])     # FIX
+    min_value  <- as.numeric(child_min[[b]])
+    start_val  <- as.numeric(start_aic[b])
+    
+    if(aic_value <= (min_value + delta) &&
+       aic_value <= (start_val - epsilon)) {
+      
+      extract_child_aic[[b]][c] <- aic_value
+         }
+        }
+      }
+      
+      extract_fit <- vector("list", length(child_fit_aic))
+      extract_combos <- vector("list", length(child_fit_aic))
+
+      for(b in seq_along(child_fit_aic)) {
+  
+      # Find which AICs passed your threshold
+      keep_idx <- which(!is.na(extract_child_aic[[b]]))
+  
+      # Extract the models at the same positions
+      extract_fit[[b]] <- child_fit[[b]][keep_idx]
+      # Keep combos at the same positions
+      extract_combos[[b]] <- child_combos[[b]][keep_idx]
+      
+      }
+      
+      extract_aic <- vector("list", length(child_fit_aic))
+      extract_aic <- lapply(extract_child_aic, function(x) x[!is.na(x)])
+      
+      frontiers[[k]] <- extract_combos
+      aic_by_model[[k]] <- extract_aic
+      
+      } else { #for dimensions greater than 2 
+        
+        # takes the variables from the extracted 2 variables models
+      current_combos <- extract_combos
+  
+      vars_diff <- vector("list", length(current_combos))
+      child_combos <- vector("list", length(current_combos))
+      
+      # determine sets of variables that make up the child combinations for this     dimension
+
+      for(b in seq_along(current_combos)){
+      
+      child_combos[[b]] <- vector("list", length(current_combos[[b]]))
+      vars_diff[[b]] <- vector("list", length(current_combos[[b]]))
+  
+      for(c in seq_along(current_combos[[b]])){
+    
+        parent_vars <- current_combos[[b]][[c]]   
+        
+        vars_diff[[b]][[c]] <- setdiff(predictors, parent_vars)
+    
+        # for each parent model, make a list of new combinations that add one more variable
+        child_combos[[b]][[c]] <- lapply(vars_diff[[b]][[c]], 
+                                         function(x) append( parent_vars, x))
+           }
+          }
+      
+        # make a list to contain child models
+        child_fit <- vector("list", length(child_combos))
+      
+        # make a list to contain child AIC
+        child_fit_aic <- vector("list", length(child_combos))
+      
+        # models retained after comparison to parent
+        child_retain <- list()
+      
+      for(b in seq_along(child_combos)){
+        
+      child_fit[[b]] <- vector("list", length(child_combos[[b]]))
+      child_fit_aic[[b]] <- vector("list", length(child_combos[[b]]))
+      
+        for(c in seq_along(child_combos[[b]])){
+        
+        # fit child models for each parent model
+        child_fit[[b]][[c]] <- lapply(child_combos[[b]][[c]], fit_model)
+        
+        # calculate AIC for each child model
+        child_fit_aic[[b]][[c]] <- lapply(child_fit[[b]][[c]], AIC)
+        
+        }
+      }
+        # find minimum AIC for each group
+        child_min <- vector("list", length(child_fit_aic))
+        for (b in seq_along(child_fit_aic)) {
+        child_min[[b]] <- sapply(child_fit_aic[[b]], function(aic_list)
+      min(as.numeric(aic_list))
+    )
+  }
+  
+        
+        extract_child_aic <- child_fit_aic
+  for (b in seq_along(child_fit_aic)) {
+    for (c in seq_along(child_fit_aic[[b]])) {
+
+      for (j in seq_along(child_fit_aic[[b]][[c]])) {
+        aic_value <- as.numeric(child_fit_aic[[b]][[c]][[j]])
+        min_value <- child_min[[b]][c]
+        parent_aic <- extract_aic[[b]][c]
+
+        if (aic_value <= (min_value + delta) &&
+            aic_value <= (parent_aic - epsilon)) {
+
+          extract_child_aic[[b]][[c]][[j]] <- aic_value
+        } else {
+          extract_child_aic[[b]][[c]][[j]] <- NA
+        }
+      }
+    }
+  }
+        
+     extract_fit <- vector("list", length(child_fit))
+     extract_combos <- vector("list", length(child_fit))
+     extract_aic <- vector("list", length(child_fit))
+        
+        for (b in seq_along(child_fit)) {
+    extract_fit[[b]] <- vector("list", length(child_fit[[b]]))
+    extract_combos[[b]] <- vector("list", length(child_fit[[b]]))
+    extract_aic[[b]] <- vector("list", length(child_fit[[b]]))
+
+    for (c in seq_along(child_fit[[b]])) {
+      keep_idx <- which(!is.na(unlist(extract_child_aic[[b]][[c]])))
+
+      extract_fit[[b]][[c]] <- child_fit[[b]][[c]][keep_idx]
+      extract_combos[[b]][[c]] <- child_combos[[b]][[c]][keep_idx]
+      extract_aic[[b]][[c]] <- unlist(extract_child_aic[[b]][[c]])[keep_idx]
+    }
+  }
+    
+     frontiers[[k]] <- extract_combos
+     aic_by_model[[k]] <- extract_aic
+     
+  k <- k + 1
+      }     
+    }
+  
+  meta <- list("Dimensions" = K, "Epsilon" = epsilon, "Delta" = delta, "Limit_For_Retention" = L, "Model Type" = model_type)
+  
+  return(list(
+  path_forest = list(
+    frontiers = frontiers,
+    aic_by_model = aic_by_model,
+    meta = meta)
+))
+  
+}
+X <- adult[, 1:14]
+response <- adult[, 15]
+           
+path_forest <- build_paths(X = X, response = response)
+
+str(path_forest)      
+```
+
+
+```{r}
+stability <- function(data, response, B = 100, K = 5, epsilon = 1e-6, 
+                           delta = 2, L = 25, model_type = NULL) {
+  
+result_matrix <- matrix(0, nrow = B, ncol = length(setdiff(names(data), response)),
+  dimnames = list(NULL, setdiff(names(data), response)))
+  
+  resampling <- vector("list", B)
+  predictors <- colnames(result_matrix)
+  p_length <- length(predictors)
+  
+  for (b in 1:B) {
+    # Bootstrap
+    index_b <- sample(1:nrow(data), size = nrow(data), replace = TRUE)
+    data_b <- data[index_b, , drop = FALSE]
+    
+    # Fit model
+    models_b <- build_paths(data_b, response,
+                            K = K, epsilon = epsilon,
+                            delta = delta, L = L,
+                            model_type = model_type)
+    
+    # Feature inclusion
+    counts <- rep(0, p)
+    names(counts) <- predictors
+    if (length(models_b) > 0) {
+      for (m in models_b) counts[m$variables] <- counts[m$variables] + 1
+    }
+    
+    # Proportions for Bootstrap sample
+    z_j_b <- counts / (ifelse(length(models_b) > 0, length(models_b), 1)) # calculates ( z_j^{(b)} )
+    result_matrix[b, ] <- z_j_b
+    
+    # Store proportions
+    resampling [[b]] <- z_j_b
+  }
+  
+  # Calculate stability
+  pi <- colMeans(result_matrix)
+  path_stability <- data.frame(variable = predictors, pi = pi)
+  path_stability <- path_stability[order(-path_stability$pi), ]
+  
+  return(list(path_stability = path_stability, resampling = resampling))
+}
+```
 
