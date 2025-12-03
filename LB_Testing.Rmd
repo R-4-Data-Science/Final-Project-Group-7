@@ -169,6 +169,34 @@ multi_path_forward <- function(data, response,
 }
 ```
 
+#Debug by chunk 
+```{r}
+multi_path_forward <- function(data, response,
+                               K = 5, epsilon = 1e-6, delta = 2, L = 25,
+                               model_type = NULL) {
+
+  # ---- Local helper: detect model type -------------------------------------
+  detect_model_type <- function(y) {
+    if (is.factor(y) && nlevels(y) == 2) return("logistic")
+    if (is.logical(y)) return("logistic")
+    if (is.numeric(y)) {
+      uy <- unique(stats::na.omit(y))
+      if (length(uy) <= 2 && all(uy %in% c(0, 1))) return("logistic")
+    }
+    "linear"
+  }
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(data[[response]])
+    cat("Detected model type:", model_type, "\n")
+  } else {
+    model_type <- match.arg(tolower(model_type), c("linear", "logistic"))
+  }
+
+  predictors <- setdiff(names(data), response)
+}
+```
+
+
 ```{r}
 result <- multi_path_forward(
   data = adult,
