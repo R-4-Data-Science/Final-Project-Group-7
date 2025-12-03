@@ -24,141 +24,175 @@ adult$NA. <- as.factor(adult$NA.)
 
 
 ```{r}
-multi_path_forward(data = adult[,1:14], response = adult[,15])
+cancer <- breastcancer
+View(cancer)
+cancer <- cancer[,-1]
+names(cancer) <- c("Diagnosis", "radius1", "texture1", "perimeter1", "area1", "smoothness1", "compactness", "concavity1", "concave_point", "symmetry", "fractal_dimension", "radius2", "texture2", "perimeter2", "area2", "smoothness2", "compactness2", "concavity2", "concave_points2", "symmetry2", "fractal_dimension2", "radius3", "texture3", "perimeter3", "area3", "smoothness3", "compactness3", "concavity3", "concave_points3", "symmetry3", "fractal_dimension3")
 
-multi_path_forward <- function(data, response,
-                               K = 5, epsilon = 1e-6, delta = 2, L = 25,
-                               model_type = NULL) {
+path_forest <- build_paths(X = cancer, response = "Diagnosis")
+build_paths <- function(X, response, K = 5, epsilon = 0.0000001, delta = 2, L = 25, model_type = NULL) {
 
-  # --- Local helper: detect model type (not exported) -----------------------
-  detect_model_type <- function(data, response) {
-    y <- response
-    if (is.factor(y) && nlevels(y) == 2) return("logistic")
-    if (is.logical(y)) return("logistic")
-    if (is.numeric(y)) {
-      uy <- unique(stats::na.omit(y))
-      if (length(uy) <= 2 && all(uy %in% c(0, 1))) return("logistic")
-    }
-    "linear"
+  # --- Auto-detect model type ---
+  detect_model_type <- function(y) {
+    if (is.factor(y) || length(unique(y)) == 2) return("logistic")
+    if (is.numeric(y)) return("linear")
+    stop("Cannot detect model type automatically.")
   }
 
-  # --- Auto-detect model type if needed ------------------------------------
+  # response is passed as a column name
+  y <- X[[response]]
+
   if (is.null(model_type)) {
-    model_type <- detect_model_type(data, response)
+    model_type <- detect_model_type(y)
     cat("Detected model type:", model_type, "\n")
-  } else {
-    model_type <- match.arg(tolower(model_type), c("linear", "logistic"))
   }
 
-  predictors <- setdiff(names(data), response)
+  predictors <- setdiff(colnames(X), response)
 
-  # --- Fit function ---------------------------------------------------------
- # fit_model <- function(vars) {
-    #formula_str <- paste(
-       response, "~",
-      ifelse(length(vars) == 0, "1", paste(vars, collapse = "+"))
-    )
-    f <- stats::as.formula(formula_str)
-
-    if (model_type == "linear") {
-      stats::lm(f, data = data)
-    } else {
-      stats::glm(f, data = data, family = stats::binomial())
-    }
- # }
-  
-    fit_model <- function(vars) {
-    formula_str <- paste(response_name, "~",
+  # --- Model fitting helper ---
+  fit_model <- function(vars) {
+    formula_str <- paste(response, "~",
                          ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
-    
+
     if (model_type == "linear") {
-      return(lm(as.formula(formula_str), data = data))
+      return(lm(as.formula(formula_str), data = X))
     } else {
-      return(glm(as.formula(formula_str), data = data, family = binomial))
+      return(glm(as.formula(formula_str), data = X, family = binomial))
     }
   }
 
-  # --- Initialize -----------------------------------------------------------
-  # null models
-  start_fit <- fit_model(character())
-  start_aic <- stats::AIC(start_fit)
-
-  models <- list(list(variables = character(), AIC = start_aic))
+  # --- Initialize storage ---
   frontiers <- list()
   aic_by_model <- list()
 
-  step <- 1L
-  repeat {
-    new_models <- list()
-    model_hash <- character()
+  # ===============================
+  # LEVEL 1: Single-variable models
+  # ===============================
 
-    for (m in models) {
-      current_vars <- m$variables
-      remaining_vars <- setdiff(predictors, current_vars)
-      if (length(remaining_vars) == 0L) next
+  start_fit <- vector("list", length(predictors))
+  start_aic <- rep(NA, length(predictors))
 
-      candidate_models <- list()
-      for (v in remaining_vars) {
-        new_vars <- c(current_vars, v)
-        key <- paste(sort(new_vars), collapse = ",")
+  for (i in seq_along(predictors)) {
 
-        if (key %in% model_hash) next
+    suppressWarnings({
+      fit_try <- try(fit_model(predictors[i]), silent = TRUE)
+    })
 
-        fit <- try(suppressWarnings(fit_model(new_vars)), silent = TRUE)
-        if (inherits(fit, "try-error")) next
-
-        aic_val <- stats::AIC(fit)
-        if (!is.finite(aic_val)) next
-
-        candidate_models[[key]] <- list(variables = new_vars, AIC = aic_val)
-        model_hash <- c(model_hash, key)
-      }
-
-      if (length(candidate_models) == 0L) next
-
-      aic_values <- vapply(candidate_models, function(x) x$AIC, numeric(1))
-      best_aic <- min(aic_values)
-
-      # Keep only near-best children
-      selected <- candidate_models[aic_values <= best_aic + delta]
-
-      # Only if parent improves by > ε
-      if (best_aic < m$AIC - epsilon) {
-        new_models <- c(new_models, selected)
-      }
+    if (!inherits(fit_try, "try-error")) {
+      start_fit[[i]] <- fit_try
+      start_aic[i] <- AIC(fit_try)
+    } else {
+      start_fit[[i]] <- NA      # ← FIXED: do NOT use NULL
+      start_aic[i] <- NA
     }
-
-    if (length(new_models) == 0L || step >= K) break
-
-    # Sort by AIC before truncating
-    aics <- vapply(new_models, function(x) x$AIC, numeric(1))
-    ord <- order(aics)
-    new_models <- new_models[ord]
-
-    # Keep best L
-    new_models <- new_models[seq_len(min(L, length(new_models)))]
-
-    # Save frontier
-    frontiers[[step]] <- new_models
-
-    # Save AIC dictionary
-    for (nm in new_models) {
-      key <- paste(sort(nm$variables), collapse = ",")
-      aic_by_model[[key]] <- nm$AIC
-    }
-
-    models <- new_models
-    step <- step + 1L
   }
 
- final_output<- list(
-    path_forest = frontiers,
-    aic_by_model = aic_by_model,
-    meta = list(K = K, epsilon = epsilon, delta = delta, L = L,
-                model_type = model_type)
+  frontiers[[1]] <- lapply(seq_along(predictors), function(i) {
+    list(vars = predictors[i], fit = start_fit[[i]], aic = start_aic[i])
+  })
+
+  aic_by_model[[1]] <- start_aic
+
+  current_frontier <- frontiers[[1]]
+
+  # ===============================
+  # LEVELS 2 through K
+  # ===============================
+
+  for (k in 2:K) {
+
+    all_children <- list()
+    all_children_aic <- numeric(0)
+
+    for (parent in current_frontier) {
+
+      parent_vars <- parent$vars
+      parent_aic  <- parent$aic
+
+      remaining <- setdiff(predictors, parent_vars)
+
+      child_list <- list()
+      child_aics <- numeric(0)
+
+      # --- Build children by adding each remaining variable ---
+      for (v in remaining) {
+
+        new_vars <- c(parent_vars, v)
+
+        fit_try <- try(fit_model(new_vars), silent = TRUE)
+
+        if (!inherits(fit_try, "try-error")) {
+
+          aic <- AIC(fit_try)
+
+          child_list <- append(child_list, list(
+            list(vars = new_vars, fit = fit_try, aic = aic)
+          ))
+
+          child_aics <- c(child_aics, aic)
+        }
+      }
+
+      if (length(child_aics) > 0) {
+
+        best_child_aic <- min(child_aics, na.rm = TRUE)
+
+        # Option A filtering
+        keep_idx <- which(
+          (child_aics - best_child_aic <= delta) &   # Within delta
+          (parent_aic - child_aics > epsilon)        # Improves by epsilon
+        )
+
+        if (length(keep_idx) > 0) {
+          all_children <- append(all_children, child_list[keep_idx])
+          all_children_aic <- c(all_children_aic, child_aics[keep_idx])
+        }
+      }
+    }
+
+    # --- Deduplicate by sorted variable-set signature ---
+    if (length(all_children) > 0) {
+
+      keys <- sapply(all_children, function(m)
+        paste(sort(m$vars), collapse = "_")
+      )
+
+      keep <- !duplicated(keys)
+      all_children <- all_children[keep]
+      all_children_aic <- sapply(all_children, function(m) m$aic)
+
+      # --- Keep best L ---
+      if (length(all_children) > L) {
+        idx <- order(all_children_aic)[1:L]
+        all_children <- all_children[idx]
+      }
+    }
+
+    # Save frontier k
+    frontiers[[k]] <- all_children
+    aic_by_model[[k]] <- sapply(all_children, function(m) m$aic)
+
+    current_frontier <- all_children
+  }
+
+  meta <- list(
+    Dimensions = K,
+    Epsilon = epsilon,
+    Delta = delta,
+    Limit_For_Retention = L,
+    Model_Type = model_type
   )
+
+  return(list(
+    path_forest = list(
+      frontiers = frontiers,
+      aic_by_model = aic_by_model,
+      meta = meta
+    )
+  ))
 }
 
-final_output
+
 ```
+
 

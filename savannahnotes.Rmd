@@ -74,13 +74,15 @@ Savannah's edits to build paths:
 X = adult[,1:14]
 response = adult[,15]
 
-path_forest <- build_paths(X = adult[,1:14], response = adult[,15])
+cancer$Diagnosis <- as.factor(cancer$Diagnosis)
+
+path_forest <- build_paths(X = cancer, response = "Diagnosis")
 
 build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, model_type = NULL){
 
   # --- Auto-detect model type ---
   detect_model_type <- function(response) {
-    y <- response
+    y <- X[,response]
     if (is.factor(y) || length(unique(y)) == 2) return("logistic")
     if (is.numeric(y)) return("linear")
     stop("Cannot detect model type automatically.")
@@ -96,7 +98,7 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, m
 
   # --- Model fitting helper ---
   fit_model <- function(vars) {
-    formula_str <- paste(response_name, "~",
+    formula_str <- paste(response, "~",
                          ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
     if (model_type == "linear") {
       return(lm(as.formula(formula_str), data = X))
@@ -351,16 +353,16 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, m
         
 ```
         
-     
+####### Working Build Paths Code: ###############
 ```{r}
 X <- adult[,1:14]
 response <- adult[,15]
 adult$NA. <- as.factor(adult$NA.)
-response <- 
+cancer <- as.data.frame(cancer)
+str(cancer)
 
-path_forest <- build_paths(X = adult, response = "NA.")
-build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, model_type = NULL) {
-
+path_forest <- build_paths(X = cancer, response = "Diagnosis")
+build_paths <- function(X, response, K = 5, epsilon = .001, delta = 2, L = 25, model_type = NULL) {
   
   # --- Auto-detect model type ---
   detect_model_type <- function(data, response_name) {
@@ -394,8 +396,9 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, m
   aic_by_model <- list()
 
   # --- Level 1: single-variable models ---
-  start_fit <- list()
-  start_aic <- numeric(length(predictors))
+  start_fit <- vector("list", length(predictors))
+  start_aic <- rep(NA, length(predictors))
+
 
   for (i in seq_along(predictors)) {
     suppressWarnings({
@@ -404,7 +407,7 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, m
     if (!inherits(start_fit[[i]], "try-error")) {
       start_aic[i] <- AIC(start_fit[[i]])
     } else {
-      start_fit[[i]] <- NULL
+      start_fit[[i]] <- NA
       start_aic[i] <- NA
     }
   }
@@ -483,261 +486,220 @@ build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, m
 
 ```
      
-     
-   
-        
- 
-          
-        }
-      }
-    }  
-  
-   child_retain <- list()
+```{r}
+build_path_debug <- build_paths_debug(X = cancer, response = "Diagnosis")
 
-for (b in seq_along(child_fit_aic)) {
+build_paths_debug <- function(X, response, K = 5, epsilon = 0.001, delta = 2, L = 25,
+                              model_type = NULL, verbose = TRUE) {
 
-  parent_aic <- start_models$AIC[b]
-  child_aics <- child_fit_aic[[b]]
+  # Defensive checks
+  if (!is.data.frame(X)) stop("X must be a data.frame")
+  if (!is.character(response) || length(response) != 1) stop("response must be the column name (string) in X")
 
-  for (c in seq_along(child_aics)) {
+  if (!(response %in% colnames(X))) stop("response not found in X")
 
-    child_aic <- child_aics[[c]]   # extract numeric AIC
+  # --- Auto-detect model type ---
+  detect_model_type <- function(y) {
+    if (is.factor(y) || length(unique(y)) == 2) return("logistic")
+    if (is.numeric(y)) return("linear")
+    stop("Cannot detect model type automatically.")
+  }
 
-    if (child_aic > (parent_aic - delta) &&
-        child_aic < (parent_aic + delta)) {
-      
-      child_retain[[b]][[c]] <- list(
-           fit   = child_fit[[b]][[c]],
-        combo = child_combos[[b]][[c]],
-        parent = b,
-        child = c
-      )
-      
+  yvec <- X[[response]]
+  if (any(is.na(yvec))) {
+    warning("Response contains NA values. These rows will be removed for modeling.")
+  }
+
+  if (is.null(model_type)) {
+    model_type <- detect_model_type(yvec)
+  }
+  if (verbose) cat("Detected model type:", model_type, "\n")
+
+  # Preprocess predictors: remove response, drop constant columns, coerce characters to factors
+  preds <- setdiff(colnames(X), response)
+  if (length(preds) == 0) stop("No predictor columns found after removing response")
+
+  # convert character predictors to factors (glm/lm accept factors)
+  for (p in preds) {
+    if (is.character(X[[p]])) {
+      X[[p]] <- as.factor(X[[p]])
+      if (verbose) cat("Converted predictor", p, "from character -> factor\n")
     }
   }
-}
-      
-      
 
-      child_retain[[length(child_retain) + 1]] <- list(
-        fit   = child_fit[[b]][[c]],
-        combo = child_combos[[b]][[c]],
-        parent = b,
-        child = c
-      )
-    }
-    }
-  
-  path_forest <- list("frontiers" = list(start_models, )), aic_by_model)
-}
-   
-      
-      
-############# left off here on Monday
-  
-      
-      
-      remaining_vars <- setdiff(predictors, current_vars)
-      if (length(remaining_vars) == 0) next
+  # drop predictors with zero variance
+  zero_var <- sapply(preds, function(p) {
+    length(unique(na.omit(X[[p]]))) <= 1
+  })
+  if (any(zero_var)) {
+    drop <- preds[zero_var]
+    preds <- setdiff(preds, drop)
+    if (verbose) cat("Dropped zero-variance predictors:", paste(drop, collapse = ", "), "\n")
+  }
+  if (length(preds) == 0) stop("No usable predictors after dropping zero-variance columns")
 
-      candidate_models <- list()
-      for (v in 1:length(remaining_vars)) {
-        new_vars <- c(current_vars, remaining_vars[v])
-        suppressWarnings({
-          fit <- try(fit_model(new_vars), silent = TRUE)
-        })
-        if (inherits(fit, "try-error")) next
-        candidate_models[[v]] <- list(variables = new_vars, AIC = AIC(fit))
+  # helper to safely fit models and capture errors
+  safe_fit <- function(vars) {
+    fstr <- paste(response, "~", ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
+    res <- list(success = FALSE, fit = NULL, aic = NA_real_, error = NULL)
+    try_expr <- tryCatch({
+      if (model_type == "linear") {
+        fit <- lm(as.formula(fstr), data = X, na.action = na.exclude)
+      } else {
+        fit <- glm(as.formula(fstr), data = X, family = binomial, na.action = na.exclude)
+      }
+      a <- tryCatch(AIC(fit), error = function(e) NA_real_)
+      res$success <- TRUE
+      res$fit <- fit
+      res$aic <- a
+      res
+    }, error = function(e) {
+      res$error <- conditionMessage(e)
+      res
+    }, warning = function(w) {
+      # capture warnings but still keep model if successful
+      invokeRestart("muffleWarning") # suppress here
+    })
+    try_expr
+  }
+
+  # Storage
+  frontiers <- list()
+  aic_by_model <- list()
+  diagnostics <- list(levels = vector("list", K))
+
+  # Level 1: single-variable models
+  start_fit <- vector("list", length(preds))
+  start_aic <- rep(NA_real_, length(preds))
+  fit_ok_idx <- logical(length(preds))
+  fit_errors <- vector("list", length(preds))
+
+  for (i in seq_along(preds)) {
+    res <- safe_fit(preds[i])
+    if (res$success) {
+      start_fit[[i]] <- res$fit
+      start_aic[i] <- res$aic
+      fit_ok_idx[i] <- TRUE
+    } else {
+      start_fit[[i]] <- NA
+      start_aic[i] <- NA
+      fit_errors[[i]] <- res$error
+    }
+  }
+
+  # diagnostics for level 1
+  diagnostics$levels[[1]] <- list(predictors = preds, fit_ok = fit_ok_idx, errors = fit_errors)
+  if (verbose) {
+    cat("Level 1: tried", length(preds), "single-var models;", sum(fit_ok_idx), "succeeded.\n")
+    if (sum(!fit_ok_idx) > 0) {
+      cat("  Failures (example):\n")
+      idx_fail <- which(!fit_ok_idx)
+      for (j in head(idx_fail, 5)) cat("   -", preds[j], "=>", fit_errors[[j]], "\n")
+    }
+  }
+
+  frontiers[[1]] <- lapply(seq_along(preds), function(i)
+    list(vars = preds[i], fit = if (fit_ok_idx[i]) start_fit[[i]] else NA, aic = start_aic[i])
+  )
+  aic_by_model[[1]] <- start_aic
+
+  current_frontier <- frontiers[[1]]
+
+  # MAIN loop levels 2..K
+  for (k in 2:K) {
+    if (verbose) cat("Starting level", k, "with", length(current_frontier), "parents\n")
+    children_all <- list()
+    children_aic_all <- numeric(0)
+    level_diag <- list()
+
+    for (pi in seq_along(current_frontier)) {
+      parent <- current_frontier[[pi]]
+      parent_vars <- parent$vars
+      parent_aic <- parent$aic
+
+      remaining <- setdiff(preds, parent_vars)
+      if (length(remaining) == 0) next
+
+      child_list <- list()
+      child_aics <- numeric(0)
+      child_errors <- list()
+
+      for (v in remaining) {
+        new_vars <- c(parent_vars, v)
+        res <- safe_fit(new_vars)
+        if (res$success) {
+          child_list <- append(child_list, list(list(vars = new_vars, fit = res$fit, aic = res$aic)))
+          child_aics <- c(child_aics, res$aic)
+          child_errors <- c(child_errors, NA)
+        } else {
+          child_list <- append(child_list, list(NULL))
+          child_aics <- c(child_aics, NA_real_)
+          child_errors <- c(child_errors, res$error)
+        }
       }
 
-      if (length(candidate_models) == 0) next
+      # store diagnostics for this parent
+      level_diag[[pi]] <- list(parent = parent_vars, remaining = remaining,
+                               child_aics = child_aics, child_errors = child_errors)
 
-      # Evaluate improvement
-      aic_values <- sapply(candidate_models, function(x) x$AIC)
-      best_aic <- min(aic_values)
-      improved <- candidate_models[aic_values < m$AIC - epsilon]
-      near_ties <- improved[aic_values[aic_values < m$AIC - epsilon] <= best_aic + delta]
+      # Option A filtering: keep children that are within delta of parent's best child AND improve on parent by > epsilon
+      if (all(is.na(child_aics))) {
+        next
+      }
+      best_child_aic <- min(child_aics, na.rm = TRUE)
+      keep_idx <- which(!is.na(child_aics) &
+                        (child_aics - best_child_aic <= delta) &
+                        ((parent_aic - child_aics) > epsilon))
 
-      # Keep all near-ties as new models for next iteration
-      if (length(near_ties) > 0) {
-        new_models <- c(new_models, near_ties)
-      
-    }
+      if (length(keep_idx) > 0) {
+        # only append actual successful child_list entries
+        to_append <- child_list[keep_idx]
+        # some entries may be NULL (failed fits) - filter them
+        valid_mask <- sapply(to_append, function(x) !is.null(x))
+        if (any(valid_mask)) {
+          to_append <- to_append[valid_mask]
+          children_all <- append(children_all, to_append)
+          children_aic_all <- c(children_aic_all, sapply(to_append, function(x) x$aic))
+        }
+      }
+    } # end parents
 
-    # Stop if no further improvements
-    if (length(new_models) == 0 || step >= K) {
-      cat("No further AIC improvement. Stopping at step", step, "\n")
+    # diagnostics
+    diagnostics$levels[[k]] <- level_diag
+
+    # dedupe children
+    if (length(children_all) == 0) {
+      if (verbose) cat("Level", k, ": no children survived filtering -> stopping.\n")
+      frontiers[[k]] <- list()
+      aic_by_model[[k]] <- numeric(0)
       break
     }
 
-    # Optionally limit total number of models
-    if (length(new_models) > L) {
-      new_models <- new_models[order(sapply(new_models, `[[`, "AIC"))[1:L]]
+    keys <- sapply(children_all, function(m) paste(sort(m$vars), collapse = "_"))
+    keep_unique <- !duplicated(keys)
+    children_all <- children_all[keep_unique]
+    children_aic_all <- sapply(children_all, function(m) m$aic)
+
+    # keep top L
+    if (length(children_all) > L) {
+      idx_keep <- order(children_aic_all)[1:L]
+      children_all <- children_all[idx_keep]
+      children_aic_all <- children_aic_all[idx_keep]
     }
 
-    # Print *this generation* of models
-    cat("Number of models created:", length(new_models), "\n")
-    for (i in seq_along(new_models)) {
-      cat(" Model", i, ":", paste(new_models[[i]]$variables, collapse = ", "),
-          "| AIC =", round(new_models[[i]]$AIC, 3), "\n")
-    }
+    # save frontier k
+    frontiers[[k]] <- children_all
+    aic_by_model[[k]] <- children_aic_all
+    current_frontier <- children_all
 
-    # Update active models for next iteration and record them all
-    models <- new_models
-    all_models <- c(all_models, new_models)
-    k <- k + 1
-    start_vars
-    
-    }
-}
+    if (verbose) cat("Level", k, "-> retained", length(children_all), "models\n")
+  } # end levels
 
-  # Deduplicate models (same variables in different order)
-  unique_keys <- vapply(all_models, function(m) paste(sort(m$variables), collapse = "+"), "")
-  all_models <- all_models[!duplicated(unique_keys)]
-
-  return(all_models)
-}
-
-build_paths(data = adult[,1:14], response = adult[,15], K = 5, epsilon = 10, delta = 200, L = 25,
-                        model_type = NULL)
-
-```
-
-# updated build paths
-```{r}
-# how is nimra testing the code?
-multi_path_forward(data = adult[,1:14], response = adult[,15])
-multi_path_forward <- function(data, response,
-                               K = 5, epsilon = 1e-6, delta = 2, L = 25,
-                               model_type = NULL) {
-
-  # --- Local helper: detect model type (not exported) -----------------------
-  detect_model_type <- function(data, response) {
-    y <- data[[response]]
-    if (is.factor(y) && nlevels(y) == 2) return("logistic")
-    if (is.logical(y)) return("logistic")
-    if (is.numeric(y)) {
-      uy <- unique(stats::na.omit(y))
-      if (length(uy) <= 2 && all(uy %in% c(0, 1))) return("logistic")
-    }
-    "linear"
-  }
-
-  # --- Auto-detect model type if needed ------------------------------------
-  if (is.null(model_type)) {
-    model_type <- detect_model_type(data, response)
-    cat("Detected model type:", model_type, "\n")
-  } else {
-    model_type <- match.arg(tolower(model_type), c("linear", "logistic"))
-  }
-
-  predictors <- setdiff(names(data), response)
-
-  # --- Fit function ---------------------------------------------------------
-  fit_model <- function(vars) {
-    formula_str <- paste(
-      response, "~",
-      ifelse(length(vars) == 0, "1", paste(vars, collapse = "+"))
-    )
-    f <- stats::as.formula(formula_str)
-
-    if (model_type == "linear") {
-      stats::lm(f, data = data)
-    } else {
-      stats::glm(f, data = data, family = stats::binomial())
-    }
-  }
-
-  # --- Initialize -----------------------------------------------------------
-  start_fit <- fit_model(character())
-  start_aic <- stats::AIC(start_fit)
-
-  models <- list(list(variables = character(), AIC = start_aic))
-  frontiers <- list()
-  aic_by_model <- list()
-
-  step <- 1L
-  repeat {
-    new_models <- list()
-    model_hash <- character()
-
-    for (m in models) {
-      current_vars <- m$variables
-      remaining_vars <- setdiff(predictors, current_vars)
-      if (length(remaining_vars) == 0L) next
-
-      candidate_models <- list()
-      for (v in remaining_vars) {
-        new_vars <- c(current_vars, v)
-        key <- paste(sort(new_vars), collapse = ",")
-
-        if (key %in% model_hash) next
-
-        fit <- try(suppressWarnings(fit_model(new_vars)), silent = TRUE)
-        if (inherits(fit, "try-error")) next
-
-        aic_val <- stats::AIC(fit)
-        if (!is.finite(aic_val)) next
-
-        candidate_models[[key]] <- list(variables = new_vars, AIC = aic_val)
-        model_hash <- c(model_hash, key)
-      }
-
-      if (length(candidate_models) == 0L) next
-
-      aic_values <- vapply(candidate_models, function(x) x$AIC, numeric(1))
-      best_aic <- min(aic_values)
-
-      # Keep only near-best children
-      selected <- candidate_models[aic_values <= best_aic + delta]
-
-      # Only if parent improves by > ε
-      if (best_aic < m$AIC - epsilon) {
-        new_models <- c(new_models, selected)
-      }
-    }
-
-    if (length(new_models) == 0L || step >= K) break
-
-    # Sort by AIC before truncating
-    aics <- vapply(new_models, function(x) x$AIC, numeric(1))
-    ord <- order(aics)
-    new_models <- new_models[ord]
-
-    # Keep best L
-    new_models <- new_models[seq_len(min(L, length(new_models)))]
-
-    # Save frontier
-    frontiers[[step]] <- new_models
-
-    # Save AIC dictionary
-    for (nm in new_models) {
-      key <- paste(sort(nm$variables), collapse = ",")
-      aic_by_model[[key]] <- nm$AIC
-    }
-
-    models <- new_models
-    step <- step + 1L
-  }
-
-  list(
-    path_forest = frontiers,
-    aic_by_model = aic_by_model,
-    meta = list(K = K, epsilon = epsilon, delta = delta, L = L,
-                model_type = model_type)
-  )
+  return(list(path_forest = list(frontiers = frontiers, aic_by_model = aic_by_model, meta = list(K = K, epsilon = epsilon, delta = delta, L = L, model_type = model_type)), diagnostics = diagnostics))
 }
 
 ```
 
-
-3.3 Plausible Models
-```{r}
-plausible_models
-```
-
-
-
-
-
-
+   
+        
+ 
