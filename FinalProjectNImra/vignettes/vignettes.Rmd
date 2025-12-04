@@ -65,6 +65,7 @@ Additionally, there is a convenience wrapper:
   - `$full_paths` – output of `multi_path_forward()`,  
   - `$stability` – output of `stability()`,  
   - `$plausible_models` – final plausible model table.
+  
 # Breast Cancer Example (Main Vignette)
 
 ## Data loading and preprocessing

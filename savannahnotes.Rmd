@@ -76,7 +76,7 @@ response = adult[,15]
 
 cancer$Diagnosis <- as.factor(cancer$Diagnosis)
 
-path_forest <- build_paths(X = cancer, response = "Diagnosis")
+path_forest <- build_paths(X = adult, response = "NA.")
 
 build_paths <- function(X, response, K = 5, epsilon = 10, delta = 200, L = 25, model_type = NULL){
 
