@@ -170,8 +170,6 @@ stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
     index_b <- sample(1:nrow(X), size = nrow(X), replace = TRUE)
     X_b <- X[index_b, , drop = FALSE]
 
-
-
     # Fit model
     models_b <- build_paths(X_b, response,
                             K = K, epsilon = epsilon,
