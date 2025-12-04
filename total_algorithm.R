@@ -170,6 +170,8 @@ stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
     index_b <- sample(1:nrow(X), size = nrow(X), replace = TRUE)
     X_b <- X[index_b, , drop = FALSE]
 
+
+
     # Fit model
     models_b <- build_paths(X_b, response,
                             K = K, epsilon = epsilon,
@@ -265,6 +267,8 @@ plausible_models <- plausible_models(full_data_models = test$path_forest$frontie
 
 plausible_models
 
+
+## run this for each model in plausible models
 confusion_metrics <- confusion_metrics(model = plausible_models[[1]]$fit, data = df_test)
 
 confusion_metrics <- function(model, data, threshold = 0.5) {
@@ -306,4 +310,6 @@ confusion_metrics <- function(model, data, threshold = 0.5) {
   ))
 }
 
+## run this for each model in plausible models
+confusion_metrics <- confusion_metrics(model = plausible_models[[1]]$fit, data = df_test)
 
