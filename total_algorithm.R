@@ -250,6 +250,6 @@ plausible_models <- function(full_data_models, stability_df,
   return(plausible_models = plausible_models)
 }
 
-selected_models <- plausible_models(full_data_models = test$path_forest$frontiers, stability_df = stability_scores)
+plausible_models <- plausible_models(full_data_models = test$path_forest$frontiers, stability_df = stability_scores)
 
-
+plausible_models
