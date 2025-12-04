@@ -1,3 +1,21 @@
+library(dplyr)
+
+data("BreastCancer", package = "mlbench")
+df <- BreastCancer
+
+# Clean and preprocess
+df <- df %>%
+  select(-Id) %>%                         # Drop ID column
+  filter(complete.cases(.)) %>%          # Remove rows with missing values
+  mutate(across(-Class, as.numeric)) %>% # Convert predictors to numeric
+  mutate(Class = factor(Class))          # Ensure response is factor
+
+# Rename response to "Diagnosis" for clarity
+names(df)[names(df) == "Class"] <- "Diagnosis"
+
+
+#######################################################################
+
 build_paths <- function(X, response, K = 5, epsilon = .001, delta = 2, L = 25, model_type = NULL) {
 
   # --- Auto-detect model type ---
@@ -119,26 +137,9 @@ build_paths <- function(X, response, K = 5, epsilon = .001, delta = 2, L = 25, m
   ))
 }
 
-library(dplyr)
-
-data("BreastCancer", package = "mlbench")
-df <- BreastCancer
-
-# Clean and preprocess
-df <- df %>%
-  select(-Id) %>%                         # Drop ID column
-  filter(complete.cases(.)) %>%          # Remove rows with missing values
-  mutate(across(-Class, as.numeric)) %>% # Convert predictors to numeric
-  mutate(Class = factor(Class))          # Ensure response is factor
-
-# Rename response to "Diagnosis" for clarity
-names(df)[names(df) == "Class"] <- "Diagnosis"
-
 test <- build_paths(X = df, response = "Diagnosis", K = 5, epsilon = .001, delta = 10, L = 25, model_type = NULL)
 
 ##############################################################################################
-
-test_stability <- stability()
 
 stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
                       delta = 2, L = 25, model_type = NULL) {
@@ -193,11 +194,62 @@ stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
   path_stability <- data.frame(variable = predictors, pi = pi)
   path_stability <- path_stability[order(-path_stability$pi), ]
 
-  return(list(path_stability = path_stability, resampling = resampling))
+  return(path_stability = path_stability)
 }
 
+stability_scores <- stability(X = df, response = "Diagnosis")
+
+###############################################################################
+
+plausible_models <- function(full_data_models, stability_df,
+                             delta = 2, tau = 0.6,
+                             jaccard_threshold = 0.9) {
+
+  # unlist models, predictors and aic values from full set of models generated in previous step,
+  # combine into one master list
+  unlist_models <- list()
+  collect_models <- list()
+  collect_aic <- list()
+  collect_predictors <- list()
+
+  unlist_models <- unlist(full_data_models, recursive = FALSE)
+
+  for(b in 1:length(unlist_models)){
+
+    collect_models[[b]] <- unlist_models[[b]]$fit
+    collect_aic[[b]] <- unlist_models[[b]]$aic
+    collect_predictors[[b]] <- unlist_models[[b]]$vars
+
+  }
+
+  # find minimum model aic
+  min_aic <- min(unlist(collect_aic))
+
+  # make list to save plausible models
+  plausible_models <- list()
+
+  for(b in 1:length(unlist_models)){
+    if(unlist_models[[b]]$aic <= (min_aic + delta)){
+      plausible_models[[b]] <- unlist_models[[b]]
+    }
+  }
+  ################### this results in only 61 slots in plausible models, not 84?
 
 
+  # Compute mean stability for each model
+  stability_vec <- setNames(stability_scores$pi, stability_scores$variable)
+  for (i in seq_along(plausible_models)) {
+    vars <- plausible_models[[i]]$vars
+    avg_stab <- mean(stability_vec[vars], na.rm = TRUE)
+    plausible_models[[i]]$avg_stability <- avg_stab
+  }
 
+  # Filter by average stability threshold
+  plausible_models <- Filter(function(m) m$avg_stability >= tau, plausible_models)
+
+  return(plausible_models = plausible_models)
+}
+
+selected_models <- plausible_models(full_data_models = test$path_forest$frontiers, stability_df = stability_scores)
 
 
