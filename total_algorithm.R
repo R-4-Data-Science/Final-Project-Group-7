@@ -13,6 +13,20 @@ df <- df %>%
 # Rename response to "Diagnosis" for clarity
 names(df)[names(df) == "Class"] <- "Diagnosis"
 
+# reset row indices
+rownames(df) <- NULL
+
+# split the data
+df <- as.data.frame(df)
+nrow(df)
+split_at_row <- round(nrow(df)*.8, digits = 0)
+df_train <- df[1:split_at_row,]
+df_test <- df[(split_at_row+1):nrow(df),]
+
+
+
+
+
 
 #######################################################################
 
@@ -137,7 +151,7 @@ build_paths <- function(X, response, K = 5, epsilon = .001, delta = 2, L = 25, m
   ))
 }
 
-test <- build_paths(X = df, response = "Diagnosis", K = 5, epsilon = .001, delta = 10, L = 25, model_type = NULL)
+test <- build_paths(X = df_train, response = "Diagnosis", K = 5, epsilon = .001, delta = 10, L = 25, model_type = NULL)
 
 ##############################################################################################
 
@@ -197,13 +211,12 @@ stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
   return(path_stability = path_stability)
 }
 
-stability_scores <- stability(X = df, response = "Diagnosis")
+stability_scores <- stability(X = df_train, response = "Diagnosis")
 
 ###############################################################################
 
 plausible_models <- function(full_data_models, stability_df,
-                             delta = 2, tau = 0.6,
-                             jaccard_threshold = 0.9) {
+                             delta = 2, tau = 0.6) {
 
   # unlist models, predictors and aic values from full set of models generated in previous step,
   # combine into one master list
@@ -230,11 +243,9 @@ plausible_models <- function(full_data_models, stability_df,
 
   for(b in 1:length(unlist_models)){
     if(unlist_models[[b]]$aic <= (min_aic + delta)){
-      plausible_models[[b]] <- unlist_models[[b]]
+      plausible_models <- append(plausible_models, list(unlist_models[[b]]))
     }
   }
-  ################### this results in only 61 slots in plausible models, not 84?
-
 
   # Compute mean stability for each model
   stability_vec <- setNames(stability_scores$pi, stability_scores$variable)
@@ -253,3 +264,46 @@ plausible_models <- function(full_data_models, stability_df,
 plausible_models <- plausible_models(full_data_models = test$path_forest$frontiers, stability_df = stability_scores)
 
 plausible_models
+
+confusion_metrics <- confusion_metrics(model = plausible_models[[1]]$fit, data = df_test)
+
+confusion_metrics <- function(model, data, threshold = 0.5) {
+  if (!inherits(model, "glm") || family(model)$family != "binomial") {
+    stop("Model must be a logistic regression (binomial family).")
+  }
+
+  probs <- predict(model, newdata = data, type = "response")
+  pred <- ifelse(probs > threshold, 1, 0)
+  actual <- data[[all.vars(formula(model))[1]]]
+  actual <- as.numeric(actual == "malignant")
+
+  TP <- sum(pred == 1 & actual == 1)
+  TN <- sum(pred == 0 & actual == 0)
+  FP <- sum(pred == 1 & actual == 0)
+  FN <- sum(pred == 0 & actual == 1)
+
+  accuracy <- (TP + TN) / (TP + TN + FP + FN)
+  sensitivity <- TP / (TP + FN)
+  specificity <- TN / (TN + FP)
+  precision <- TP / (TP + FP)
+  F1 <- (2 * precision * sensitivity) / (precision + sensitivity)
+  DOR <- (TP / FP) / (FN / TN)
+
+  confusion_matrix <- matrix(c(TN, FP, FN, TP), nrow = 2,
+                             dimnames = list("Actual" = c("0", "1"),
+                                             "Predicted" = c("0", "1")))
+
+  return(list(
+    confusion_matrix = confusion_matrix,
+    metrics = list(
+      Accuracy = accuracy,
+      Sensitivity = sensitivity,
+      Specificity = specificity,
+      Precision = precision,
+      F1 = F1,
+      DOR = DOR
+    )
+  ))
+}
+
+
