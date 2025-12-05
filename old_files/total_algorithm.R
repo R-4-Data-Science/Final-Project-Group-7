@@ -258,7 +258,7 @@ plausible_models <- function(full_data_models, stability_df,
   # Filter by average stability threshold
   plausible_models <- Filter(function(m) m$avg_stability >= tau, plausible_models)
 
-  return(plausible_models = plausible_models)
+  return(plausible = plausible_models)
 }
 
 plausible_models <- plausible_models(full_data_models = test$path_forest$frontiers, stability_df = stability_scores)
