@@ -1,13 +1,12 @@
-#' Plausible Model Selection with AIC and Stability Filtering
+#' @title Plausible Model Selection with AIC and Stability Filtering
 #'
-#' Selects plausible and stable models using AIC and average stability thresholds.
-#' Optionally removes near-duplicate models using Jaccard similarity.
-#'
+#' @description 
+#' Selects plausible and stable models using AIC and average stability thresholds
+#' 
 #' @param full_data_models List of models from multi_path_forward().
 #' @param stability_df Tibble of stability scores from stability_resampling().
-#' @param delta_AIC Numeric; maximum AIC difference from best model.
-#' @param tau Numeric; minimum average stability threshold.
-#' @param jaccard_threshold Numeric; models with Jaccard similarity >= this will be treated as duplicates (default 0.9).
+#' @param delta Numeric; maximum AIC difference from best model.(default 2)
+#' @param tau Numeric; minimum average stability threshold.(default 0.6)
 #' @return List of plausible and stable models.
 #' @export
 plausible_models <- function(full_data_models, stability_df,
