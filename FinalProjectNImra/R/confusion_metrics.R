@@ -1,16 +1,12 @@
-#' confusion_metrics
-#'
-#' Compute confusion matrix and standard classification metrics
+#' @title Confusion Metrics
+#' @description Compute confusion matrix and standard classification metrics
 #' for logistic regression models at cutoff = 0.5.
-#'
 #' @param model A fitted logistic regression model (`glm` with family = binomial)
 #' @param data Data frame used for prediction
 #' @param threshold Numeric, classification cutoff (default = 0.5)
-#'
-#' @return A list containing confusion matrix and key metrics:
+#' @return A \code{list} containing confusion matrix and key metrics:
 #' accuracy, sensitivity, specificity, precision, F1 score, and DOR.
 #' @export
-#'
 #' @examples
 #' fit <- glm(am ~ wt + hp, data = mtcars, family = binomial)
 #' confusion_metrics(fit, mtcars)
@@ -22,6 +18,8 @@ confusion_metrics <- function(model, data, threshold = 0.5) {
   probs <- predict(model, newdata = data, type = "response")
   pred <- ifelse(probs > threshold, 1, 0)
   actual <- data[[all.vars(formula(model))[1]]]
+  ref <- levels(actual)[1]         # reference level (0)
+  actual <- as.integer(actual != ref)
 
   TP <- sum(pred == 1 & actual == 1)
   TN <- sum(pred == 0 & actual == 0)
