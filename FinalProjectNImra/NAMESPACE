@@ -2,6 +2,5 @@
 
 export(build_paths)
 export(confusion_metrics)
-export(detect_model_type)
-export(select_plausible_models)
-export(stability_resampling)
+export(plausible_models)
+export(stability)

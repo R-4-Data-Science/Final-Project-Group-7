@@ -3,11 +3,10 @@ Type: Package
 Title: Multi-Path Model Selection using AIC
 Version: 0.1.0
 Authors@R: c(
-    person("Nimra", "Ismail", role = c("aut","cre")),
-    person("Savannah", "Rascon", role = "aut"),
+    person("Nimra", "Ismail", email = "nii002@auburn.edu", role = c("aut","cre")),
+    person("Savannah", "Rascon", email = "ser0126@auburn.edu", role = "aut"),
     person("Lilley", "Brookeshire", role = "aut")
     )
-Maintainer: NImra Ismail <nii002@auburn.edu>
 Description: Implements a multi-path AIC model selection process with stability analysis.
 License: MIT
 Encoding: UTF-8
@@ -19,3 +18,4 @@ Imports:
     stats,
     utils
 RoxygenNote: 7.3.3
+

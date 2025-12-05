@@ -77,5 +77,3 @@ stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
 
   return(path_stability = path_stability)
 }
-
-stability_scores <- stability(X = df_train, response = "Diagnosis")

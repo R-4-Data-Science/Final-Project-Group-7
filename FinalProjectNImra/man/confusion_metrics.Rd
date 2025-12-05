@@ -2,7 +2,7 @@
 % Please edit documentation in R/confusion_metrics.R
 \name{confusion_metrics}
 \alias{confusion_metrics}
-\title{confusion_metrics}
+\title{Confusion Metrics}
 \usage{
 confusion_metrics(model, data, threshold = 0.5)
 }
@@ -14,7 +14,7 @@ confusion_metrics(model, data, threshold = 0.5)
 \item{threshold}{Numeric, classification cutoff (default = 0.5)}
 }
 \value{
-A list containing confusion matrix and key metrics:
+A \code{list} containing confusion matrix and key metrics:
 accuracy, sensitivity, specificity, precision, F1 score, and DOR.
 }
 \description{
