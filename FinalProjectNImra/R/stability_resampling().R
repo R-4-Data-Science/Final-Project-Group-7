@@ -1,7 +1,6 @@
 #' @title Stability Resampling
 #'
-#' @description
-#' This function estimates the stability of variable selection using repeated bootstrap method.
+#' @description This function estimates the stability of variable selection using repeated bootstrap method.
 #'
 #' @param X Data frame of predictors and response.
 #' @param response is the name of the response variable
@@ -17,7 +16,7 @@
 #'  \item{pi}{The stabilty score for each variable}
 #' }
 #' @export
-@examples
+#' @examples
 #' # Stability function for a linear response
 #' Linear_scores <- stability(X = mtcars, response = "mpg", K = 3, delta = 2)
 #' # Stability function for a logistic response
