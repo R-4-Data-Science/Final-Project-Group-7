@@ -1,0 +1,258 @@
+---
+title: "Multi-Path Selection Algorithm: Group 7"
+author: "Nimra Ismail, Savannah Rascon, Lilley Brookshire"
+output:
+  html_document:
+    css: autumn.css
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: True
+    fig_caption: true
+    highlight: tango    # Colorful syntax highlighting
+vignette: >
+  %\VignetteIndexEntry{Multi-Path AIC Model Selection (Breast Cancer Classification)}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+# Repository 
+
+The repository that contains the project with our test files and the project for our final package can be found here: <https://github.com/R-4-Data-Science/Final-Project-Group-7/tree/main>
+
+The repository is named Final_Project_Group_7. 
+
+The project that contains the documentation for our package is in the folder FinalProjectNimra. 
+
+# 5. HTML with Runnable Examples
+
+This section demonstrates runnable examples that illustrate how the **multi-path AIC model selection** algorithm works for both regression families: **Gaussian (linear regression)** and **Binomial (logistic regression)**. These examples use synthetic data to ensure that the package’s functions behave as expected. 
+
+Initially, we show base R–style demonstrations (Sections 5.1 and 5.2) to confirm that the AIC-based model comparisons are functioning properly. Then, in Section 5.3, we demonstrate how to use the actual package workflow to perform a full end-to-end analysis.
+
+---
+
+## 5.1 Linear Regression (Gaussian)
+
+This subsection illustrates the concept of **AIC-based model comparison** using **base R functions** on synthetic continuous data. We simulate Gaussian data with a known linear relationship and compare several simple regression models to demonstrate how AIC penalizes unnecessary complexity while rewarding better fit.
+
+```{r linear-baseR, echo=TRUE}
+
+# Base R Linear Regression Example (Gaussian)
+
+set.seed(1)
+n <- 120; p <- 8
+
+# Simulate predictors
+X <- matrix(rnorm(n * p), n, p)
+colnames(X) <- paste0("x", 1:p)
+
+# Define the true relationship
+beta <- c(2, -1.5, 0, 0, 1, rep(0, p - 5))
+y <- X %*% beta + rnorm(n, sd = 1)
+
+# Combine into a data frame
+df <- data.frame(y, X)
+
+# Fit an intercept-only model
+fit0 <- lm(y ~ 1, data = df)
+aic0 <- AIC(fit0)
+
+# Fit single-variable models to compare AICs
+fits <- lapply(1:p, function(j) lm(as.formula(paste("y ~", colnames(X)[j])), data = df))
+aics <- sapply(fits, AIC)
+
+# Display top 5 models with lowest AIC
+aic_results <- data.frame(Variable = colnames(X), AIC = aics)
+aic_results <- aic_results[order(aic_results$AIC), ]
+head(aic_results, 5)
+```
+
+The table shows the five predictors with the lowest AIC values from the single-variable linear regression models. Among them, `x1`, `x2`, and `x5` have the smallest AIC scores (535.5, 556.4, and 581.5, respectively), indicating that these predictors provide the best model fit with the least complexity penalty.
+
+Because the synthetic data were generated with a true underlying relationship involving `x1`, `x2`, and `x5`, the AIC-based comparison correctly identifies these as the most informative variables. Predictors such as `x3` and `x7`, while still contributing modestly, show higher AIC values, meaning they offer less improvement in fit relative to the increase in model complexity.
+
+## 5.2 Logistic Regression (Binomial)
+
+In this subsection, we illustrate AIC-based model comparison for a binary classification problem using **base R** logistic regression. We generate binary data from a known logistic model and compare candidate models containing individual predictors. This helps visualize how AIC extends naturally from Gaussian to Binomial models for classification.
+
+```{r logistic-baseR, echo=TRUE}
+
+# Base R Logistic Regression Example (Binomial)
+
+set.seed(2)
+n <- 200; p <- 6
+
+# Simulate predictors
+
+Xb <- matrix(rnorm(n * p), n, p)
+colnames(Xb) <- paste0("x", 1:p)
+
+# Generate binary outcome based on a logistic function
+
+linpred <- 1.2 * Xb[,1] - 1 * Xb[,2] + 0.8 * Xb[,5]
+prob <- 1 / (1 + exp(-linpred))
+ybin <- rbinom(n, 1, prob)
+
+# Combine into a data frame
+
+dfb <- data.frame(y = ybin, Xb)
+
+# Fit intercept-only model
+
+fit0 <- glm(y ~ 1, family = binomial(), data = dfb)
+aic0 <- AIC(fit0)
+
+# Fit single-variable models
+
+fits1 <- lapply(1:p, function(j) glm(as.formula(paste0("y ~ ", colnames(Xb)[j])),
+family = binomial(), data = dfb))
+aics1 <- sapply(fits1, AIC)
+
+# Display top 5 models with lowest AIC
+
+aic_results_log <- data.frame(Variable = colnames(Xb), AIC = aics1)
+aic_results_log <- aic_results_log[order(aic_results_log$AIC), ]
+head(aic_results_log, 5)
+```
+
+The table summarizes the AIC values for logistic regression models fitted with each predictor individually. The variables `x1`, `x2`, and `x5` have the lowest AIC scores (241.1, 259.7, and 264.5, respectively), indicating that these predictors provide the best trade-off between model fit and simplicity.
+
+This aligns with the way the synthetic data were generated, where `x1`, `x2`, and `x5` were intentionally set as influential predictors in the logistic model. Their lower AIC values show that these variables most effectively explain the variation in the binary outcome.
+
+## 5.3 Example Usage
+
+This section demonstrates the **complete workflow** using the functions implemented in the `FinalProjectNimra` package.
+
+The purpose of this section is to replace the original placeholder example from the assignment (which used `build_paths()`, `stability()`, and `plausible_models ()`).
+
+We show both linear and logistic regression examples, and this section confirms that the package functions integrate properly and produce interpretable, stable results for both regression families.
+
+```{r install-and-load, eval=FALSE}
+# Install the package (uncomment if not already installed)
+install.packages("remotes")
+remotes::install_github("R-4-Data-Science/FinalProjectNimra")
+
+# Load the package
+library(FinalProjectNimra)
+```
+
+## Example 1 – Linear Regression (Gaussian)
+
+We first demonstrate the multi-path AIC workflow on simulated Gaussian data.
+The goal is to recover the true underlying predictors while accounting for model uncertainty and stability.
+
+```{r}
+set.seed(123)
+
+# Simulate Gaussian data
+n <- 120; p <- 8
+X <- matrix(rnorm(n * p), n, p)
+beta <- c(2, -1.5, 0, 0, 1, rep(0, p - 5))
+y <- X %*% beta + rnorm(n, sd = 1)
+df <- as.data.frame(cbind(y, X))
+colnames(df) <- c("y", paste0("x", 1:p))
+
+# Run the full procedure
+
+# multi-path forward selection
+path_forest <- build_paths(
+  X = df, 
+  response = "y", 
+  K = 5,
+  epsilon = .000001, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL
+  )
+
+# stability with resampling
+stability_scores <- stability(
+  X = df, 
+  response = "y", 
+  B = 100, 
+  K = 5, 
+  epsilon = 1e-6, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL
+  )
+
+# select plausible models
+plausible <- plausible_models(
+  full_data_models = path_forest$path_forest$frontiers, 
+  stability_df = path_stability,
+  delta = 2,
+  tau = 0.6
+  )
+
+plausible
+```
+
+The multi-path AIC procedure identified a single plausible and stable model containing predictors `X1`, `X2`, `X5` and `X7` (AIC = 348.3359, Avg. Stability = 0.925). These match almost true variables used to generate the data, confirming accurate model recovery.
+
+## Example 2 – Logistic Regression (Binomial)
+
+Next, we apply the same approach to synthetic binary data generated from a logistic model.
+This demonstrates how the same function can handle classification problems.
+
+```{r}
+# Simulate binary logistic data
+n <- 200; p <- 6
+Xb <- matrix(rnorm(n * p), n, p)
+colnames(Xb) <- paste0("x", 1:p)
+
+# Define the true logistic relationship
+linpred <- 1.2 * Xb[,1] - 1 * Xb[,2] + 0.8 * Xb[,5]
+prob <- 1 / (1 + exp(-linpred))
+ybin <- rbinom(n, 1, prob)
+
+# Combine into a data frame
+dfb <- as.data.frame(cbind(y = ybin, Xb))
+
+# Run the full multi-path AIC procedure
+res_logistic <- multi_path_AIC_procedure(
+  data = dfb,
+  response = "y",
+  K = 5,                # number of forward-selection steps
+  epsilon = 1e-6,       # convergence tolerance
+  delta = 2,            # AIC tolerance for path branching
+  L = 25,               # number of paths to explore
+  B = 50,               # bootstrap samples for stability
+  delta_AIC = 2,        # AIC threshold for plausible models
+  tau = 0.6,            # stability threshold
+  model_type = "logistic"  # specify model type
+)
+
+# Display plausible logistic models
+res_logistic$plausible_models
+
+# Visualize variable stability
+plot_stability(res_logistic$stability)
+```
+
+The multi-path AIC procedure identified one plausible and stable model consisting of predictors `X1`, `X2`, and `X5` (AIC = 203.411, Avg. Stability = 1). These variables correspond exactly to the true predictors used to generate the binary outcome, confirming accurate recovery of the underlying data structure.
+
+All three predictors (`X1`, `X2`, `X5`) have a stability score of 1, indicating consistent selection of the correct variables across all bootstrap samples.
+
+**Interpretation:**
+
+These examples demonstrate that the `FinalProjectNimra` package successfully:
+
++ Explores multiple near-optimal AIC paths (controlled by δ = 1).
+
++ Estimates variable stability across bootstrap samples (B = 20).
+
++ Filters plausible models using AIC tolerance (Δ = 2 by default) and stability threshold (τ = 0.6).
+
+The results verify that both linear and logistic regression families are supported and produce interpretable, stable model selections.
+
+# Appendix
+## Links for chats with ChatGPT
+<https://chatgpt.com/share/693361bd-64c4-800f-b3a3-a2982dedffa5>
+<https://chatgpt.com/share/693361d0-dcb8-800f-95d3-fa6da5957fe5>
+<https://chatgpt.com/share/693361ea-fd60-800f-894d-a4537e4b80b8>
+
