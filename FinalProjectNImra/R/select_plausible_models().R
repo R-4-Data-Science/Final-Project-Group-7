@@ -7,7 +7,13 @@
 #' @param stability_df Tibble of stability scores from stability_resampling().
 #' @param delta Numeric; maximum AIC difference from best model.(default 2)
 #' @param tau Numeric; minimum average stability threshold.(default 0.6)
-#' @return List of plausible and stable models.
+#' #' @return A List ("plausible_models") of plausible and stable models that contain: 
+#' \describe{
+#'  \item{fit}{A fitted model}
+#'  \item{aic}{AIC value for the model}
+#'  \item{vars}{Predictor variable names within models}
+#'  \item{avg_stability}{Average stability score of the predicitor models}
+#' }
 #' @export
 plausible_models <- function(full_data_models, stability_df,
                              delta = 2, tau = 0.6) {
