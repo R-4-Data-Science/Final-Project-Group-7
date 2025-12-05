@@ -134,7 +134,7 @@ We show both linear and logistic regression examples, and this section confirms 
 ```{r install-and-load, eval=FALSE}
 # Install the package (uncomment if not already installed)
 install.packages("remotes")
-remotes::install_github("R-4-Data-Science/FinalProjectNimra")
+remotes::install_github("R-4-Data-Science/Final-Project-Group-7/FinalProjectNImra")
 
 # Load the package
 library(FinalProjectNimra)
@@ -190,6 +190,9 @@ plausible <- plausible_models(
   )
 
 plausible
+
+AIC_table <- data.frame(c(plausible[[1]]$aic, plausible[[2]]$aic, plausible[[3]]$aic, plausible[[4]]$aic), bycol = TRUE)
+?table
 ```
 
 The multi-path AIC procedure identified a single plausible and stable model containing predictors `X1`, `X2`, `X5` and `X7` (AIC = 348.3359, Avg. Stability = 0.925). These match almost true variables used to generate the data, confirming accurate model recovery.
