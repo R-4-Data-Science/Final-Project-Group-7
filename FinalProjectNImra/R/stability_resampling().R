@@ -17,6 +17,12 @@
 #'  \item{pi}{The stabilty score for each variable}
 #' }
 #' @export
+@examples
+#' # Stability function for a linear response
+#' Linear_scores <- stability(X = mtcars, response = "mpg", K = 3, delta = 2)
+#' # Stability function for a logistic response
+#' mtcars$am <- factor(mtcars$am) #convert to factor
+#' Logistic_scores <- stability(X = mtcars, response = "am", K = 3, delta = 2)
 stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
                       delta = 2, L = 25, model_type = NULL) {
 
