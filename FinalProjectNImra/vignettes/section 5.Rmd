@@ -1,25 +1,19 @@
-
 ---
-title: "Vignette: Synthetic Examples for Multi-Path AIC"
-author: "Nimra Ismail"
-output: rmarkdown::html_vignette
-vignette: >
-  %\VignetteIndexEntry{Synthetic Examples for Multi-Path AIC}
-  %\VignetteEngine{knitr::rmarkdown}
-  %\VignetteEncoding{UTF-8}
+title: "Multi-Path Selection Algorithm: Group 7"
+author: "Nimra Ismail, Savannah Rascon, Lilley Brookshire"
+date: "`r Sys.Date()`"
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-library(FinalProjectNimra)
-
 ```
 
 # 5. HTML with Runnable Examples
 
 This section demonstrates runnable examples that illustrate how the **multi-path AIC model selection** algorithm works for both regression families: **Gaussian (linear regression)** and **Binomial (logistic regression)**. These examples use synthetic data to ensure that the package’s functions behave as expected. 
 
-Initially, we show base R–style demonstrations (Sections 5.1 and 5.2) to confirm that the AIC-based model comparisons are functioning properly. Then, in Section 5.3, we demonstrate how to use the actual package workflow (`multi_path_AIC_procedure`) to perform a full end-to-end analysis.
+Initially, we show base R–style demonstrations (Sections 5.1 and 5.2) to confirm that the AIC-based model comparisons are functioning properly. Then, in Section 5.3, we demonstrate how to use the actual package workflow to perform a full end-to-end analysis.
 
 ---
 
@@ -115,14 +109,14 @@ This aligns with the way the synthetic data were generated, where `x1`, `x2`, an
 
 This section demonstrates the **complete workflow** using the functions implemented in the `FinalProjectNimra` package.
 
-The purpose of this section is to replace the original placeholder example from the assignment (which used `build_paths()`, `stability()`, and `plausible_models ()`) with a single, unified call to your implemented function `multi_path_AIC_procedure()`.
+The purpose of this section is to replace the original placeholder example from the assignment (which used `build_paths()`, `stability()`, and `plausible_models ()`).
 
-We show both linear and logistic regression examples and visualize the stability of variable selection using `plot_stability()`. This section confirms that the package functions integrate properly and produce interpretable, stable results for both regression families.
+We show both linear and logistic regression examples, and this section confirms that the package functions integrate properly and produce interpretable, stable results for both regression families.
 
 ```{r install-and-load, eval=FALSE}
 # Install the package (uncomment if not already installed)
-# install.packages("remotes")
-# remotes::install_github("R-4-Data-Science/FinalProjectNimra")
+install.packages("remotes")
+remotes::install_github("R-4-Data-Science/FinalProjectNimra")
 
 # Load the package
 library(FinalProjectNimra)

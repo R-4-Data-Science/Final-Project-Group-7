@@ -30,7 +30,7 @@ Below is a minimal example demonstrating the end-to-end workflow on the built-in
 set.seed(123)
 
 # Run full multi-path model selection
-res_linear <- multi_path_AIC_procedure(
+res_linear <- build_paths(
   data = mtcars,
   response = "mpg",
   K = 4,       # number of forward steps

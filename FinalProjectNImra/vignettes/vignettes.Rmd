@@ -1,6 +1,6 @@
 ---
 title: "Multi-Path AIC Model Selection"
-author: "Nimra Ismail"
+author: "Nimra Ismail, Savannah Rascon, Lilley Brookshire"
 output:
   html_document:
     css: autumn.css
@@ -18,7 +18,7 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-library(FinalProjectNimra)
+#library(FinalProjectNimra)
 library(mlbench)
 library(dplyr)
 library(caret)
@@ -31,11 +31,11 @@ This vignette demonstrates the use of the **FinalProjectNimra** package to perfo
 
 The package implements an advanced workflow that:
 
-1. Explores **multiple forward-selection paths** using AIC (`multi_path_forward()`),  
+1. Explores **multiple forward-selection paths** using AIC (`build_models()`),  
 2. Quantifies **variable stability** via bootstrap resampling (`stability()`), and  
-3. Filters a **plausible model set** using both AIC and average stability (`select_plausible_models()`), optionally providing fitted models for prediction.
+3. Filters a **plausible model set** using both AIC and average stability (`plausible_models()`), optionally providing fitted models for prediction.
 
-We illustrate the workflow on the **Breast Cancer Wisconsin** dataset for **logistic regression**, including:
+We illustrate the workflow on the **Breast Cancer Wisconsin** data set for **logistic regression**, including:
 
 - train/test split,  
 - multi-path AIC search and stability analysis,  
