@@ -1,11 +1,9 @@
 #' @title Multi-Path Forward Selection
-#'
 #' @description Implements forward selection with multiple near-optimal AIC paths for
 #' linear (Gaussian) or logistic (binomial) regression. If `model_type = NULL`,
 #' the type is auto-detected from the response:
 #' - Binary factor / logical / numeric in {0,1} → `"logistic"`
 #' - Otherwise → `"linear"`
-#'
 #' @param X Data frame of predictors and response.
 #' @param response Response variable name (character).
 #' @param K Maximum number of forward steps (default 5).
@@ -28,28 +26,25 @@
 #' mt <- within(mtcars, { am <- factor(am) })
 #' mp_log <- build_paths(mtcars, response = "am", K = 3, delta = 2)
 build_paths <- function(X, response, K = 5, epsilon = .000001, delta = 2, L = 25, model_type = NULL) {
-
   # --- Auto-detect model type ---
   detect_model_type <- function(data, response_name) {
     y <- data[[response_name]]
 
-    if (is.factor(y) || length(unique(y)) == 2) return("logistic")
-    if (is.numeric(y)) return("linear")
-    stop("Cannot detect model type automatically.")
-  }
+    if(is.factor(y) || length(unique(y)) == 2) return("logistic")
+    if(is.numeric(y)) return("linear")
+    stop("Cannot detect model type automatically.")}
 
-  if (is.null(model_type)) {
+  if(is.null(model_type)){
     model_type <- detect_model_type(X, response)
     cat("Detected model type:", model_type, "\n")
   }
-
   predictors <- colnames(X)
   predictors <- setdiff(predictors, response)  # exclude response
 
   # --- Model fitting helper ---
   fit_model <- function(vars) {
     formula_str <- paste(response, "~", ifelse(length(vars) == 0, "1", paste(vars, collapse = "+")))
-    if (model_type == "linear") {
+    if(model_type == "linear") {
       return(lm(as.formula(formula_str), data = X))
     } else {
       return(glm(as.formula(formula_str), data = X, family = binomial))
@@ -65,11 +60,11 @@ build_paths <- function(X, response, K = 5, epsilon = .000001, delta = 2, L = 25
   start_aic <- rep(NA, length(predictors))
 
 
-  for (i in seq_along(predictors)) {
+  for(i in seq_along(predictors)) {
     suppressWarnings({
       start_fit[[i]] <- try(fit_model(predictors[i]), silent = TRUE)
     })
-    if (!inherits(start_fit[[i]], "try-error")) {
+    if(!inherits(start_fit[[i]], "try-error")) {
       start_aic[i] <- AIC(start_fit[[i]])
     } else {
       start_fit[[i]] <- NA
@@ -84,12 +79,12 @@ build_paths <- function(X, response, K = 5, epsilon = .000001, delta = 2, L = 25
   # --- Loop over higher dimensions ---
   current_frontier <- frontiers[[1]]
 
-  for (k in 2:K) {
+  for(k in 2:K) {
 
     all_children <- list()
     all_children_aic <- numeric(0)
 
-    for (parent in current_frontier) {
+    for(parent in current_frontier) {
       parent_vars <- parent$vars
       parent_aic  <- parent$aic
 
