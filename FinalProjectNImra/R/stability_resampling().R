@@ -1,13 +1,21 @@
-#' Stability Estimation with Bootstrap Resampling
+#' @title Stability Resampling
 #'
-#' Estimates the stability of variable selection using repeated bootstrap samples.
+#' @description
+#' This function estimates the stability of variable selection using repeated bootstrap method.
 #'
-#' @param data Data frame.
-#' @param response Response variable.
+#' @param X Data frame of predictors and response.
+#' @param response is the name of the response variable
 #' @param B Number of bootstrap samples.
-#' @param K,epsilon,delta,L Parameters passed to multi_path_forward().
-#' @param model_type Model type ("linear" or "logistic"). Automatically detected if not provided.
-#' @return A tibble with variable names and their stability scores.
+#' @param K Maximum number of forward steps (default 5).
+#' @param epsilon Minimum AIC improvement to continue from a parent (default 1e-6)
+#' @param delta AIC tie threshold; keep children within `best + delta` (default 2)
+#' @param L Maximum number of models to keep per step (default 25)
+#' @param model_type Model type is specified ("linear" or "logistic"). Automatically detected if not provided ("NULL").
+#' @return A dataframe 'path_stability' with two columns
+#' \describe{
+#'  \item{variable}{predictor names}
+#'  \item{pi}{The stabilty score for each variable}
+#' }
 #' @export
 stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
                       delta = 2, L = 25, model_type = NULL) {
