@@ -141,7 +141,9 @@ library(FinalProjectNimra)
 ```
 
 Our chosen defaults for the interal workings of our functions were:
-  - 
+  - K (maximum number of steps) = 5: default of 5 levels for the iterations allows for thorough filtering but avoids long run time.
+  - $\epsilon$ (minimum AIC improvement from parent model) = .000001: keeping this smalls allows us to retain models that improve even a small amount from their parent.
+  
 ## Example 1 – Linear Regression (Gaussian)
 
 We first demonstrate the multi-path AIC workflow on simulated Gaussian data.
