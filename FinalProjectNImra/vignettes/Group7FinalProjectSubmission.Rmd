@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
 ```
 # Repository 
 
-The repository that contains the project with our test files and the project for our final package can be found here: <https://github.com/R-4-Data-Science/Final-Project-Group-7/tree/main>
+The repository that contains the project with our test files and the project for our final package can be found here: <https://github.com/R-4-Data-Science/Final-Project-Group-7/tree/main/FinalProjectNImra>
 
 The repository is named Final_Project_Group_7. 
 
