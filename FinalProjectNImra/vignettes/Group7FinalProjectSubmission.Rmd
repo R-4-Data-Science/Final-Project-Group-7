@@ -125,7 +125,7 @@ We show both linear and logistic regression examples, and this section confirms 
 # remotes::install_github("R-4-Data-Science/Final-Project-Group-7/FinalProjectNImra")
 
 # Load the package
-library(FinalProjectNimra)
+library(FinalProjectNImra)
 ```
 
 Our chosen defaults for the interal workings of our functions were:
@@ -278,7 +278,7 @@ The results verify that both linear and logistic regression families are support
 The vignette that is included in the documentation for our package is copied below for convenience.
 
 ```{r}
-library(FinalProjectNimra)
+library(FinalProjectNImra)
 library(mlbench)
 library(dplyr)
 library(caret)
