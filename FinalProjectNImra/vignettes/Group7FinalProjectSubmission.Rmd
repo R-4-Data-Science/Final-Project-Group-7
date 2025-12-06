@@ -259,3 +259,8 @@ The results verify that both linear and logistic regression families are support
 <https://chatgpt.com/share/693361d0-dcb8-800f-95d3-fa6da5957fe5>
 <https://chatgpt.com/share/693361ea-fd60-800f-894d-a4537e4b80b8>
 
+## Other sourses
+Chapter 5,6: <https://smac-group.github.io/ds/section-control.html>
+Chapter 25: <https://r4ds.hadley.nz/functions.html>
+<https://search.r-project.org/R/refmans/stats/html/lm.html>
+
