@@ -267,7 +267,7 @@ plausible_models
 
 
 ## run this for each model in plausible models
-confusion_metrics <- confusion_metrics(model = plausible_models[[1]]$fit, data = df_test)
+confusion_metrics <- confusion_metrics(model = plausible[[1]]$fit, data = df_test)
 
 confusion_metrics <- function(model, data, threshold = 0.5) {
   if (!inherits(model, "glm") || family(model)$family != "binomial") {
@@ -277,7 +277,8 @@ confusion_metrics <- function(model, data, threshold = 0.5) {
   probs <- predict(model, newdata = data, type = "response")
   pred <- ifelse(probs > threshold, 1, 0)
   actual <- data[[all.vars(formula(model))[1]]]
-  actual <- as.numeric(actual == "malignant")
+  ref <- levels(actual)[1]         # reference level (0)
+  actual <- as.integer(actual != ref)
 
   TP <- sum(pred == 1 & actual == 1)
   TN <- sum(pred == 0 & actual == 0)
@@ -309,5 +310,5 @@ confusion_metrics <- function(model, data, threshold = 0.5) {
 }
 
 ## run this for each model in plausible models
-confusion_metrics <- confusion_metrics(model = plausible_models[[1]]$fit, data = df_test)
+confusion_metrics <- confusion_metrics(model = plausible[[1]]$fit, data = df_test)
 

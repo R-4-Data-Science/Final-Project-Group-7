@@ -31,7 +31,7 @@ This vignette demonstrates the use of the **FinalProjectNimra** package to perfo
 
 The package implements an advanced workflow that:
 
-1. Explores **multiple forward-selection paths** using AIC (`build_models()`),  
+1. Explores **multiple forward-selection paths** using AIC (`build_paths()`),  
 2. Quantifies **variable stability** via bootstrap resampling (`stability()`), and  
 3. Filters a **plausible model set** using both AIC and average stability (`plausible_models()`), optionally providing fitted models for prediction.
 
@@ -43,28 +43,6 @@ We illustrate the workflow on the **Breast Cancer Wisconsin** data set for **log
 - test-set evaluation using a confusion matrix and performance metrics.
 
 At the end, we summarize how the package functions correspond to the project rubric’s function names and provide additional synthetic examples.
-
-## Mapping rubric names to package functions
-
-In the project description, the three core functions are called:
-
-- `build_paths()` – multi-path forward selection,  
-- `stability()` – resampling-based stability,  
-- `plausible_models()` – AIC + stability-based plausible model selection.
-
-In this package, they are implemented as:
-
-- `multi_path_forward()`  ← rubric’s **build_paths()**,  
-- `stability()`           ← rubric’s **stability()**,  
-- `select_plausible_models()`  ← rubric’s **plausible_models()**.
-
-Additionally, there is a convenience wrapper:
-
-- `multi_path_AIC_procedure()`  
-  which runs the full pipeline (search → stability → plausible models) in one call and returns a list containing:
-  - `$full_paths` – output of `multi_path_forward()`,  
-  - `$stability` – output of `stability()`,  
-  - `$plausible_models` – final plausible model table.
   
 # Breast Cancer Example (Main Vignette)
 
@@ -73,7 +51,8 @@ Additionally, there is a convenience wrapper:
 We use the **Breast Cancer Wisconsin** dataset from the **mlbench** package. The goal is to classify tumors as **malignant** (1) vs **benign** (0) based on several cell-nuclei features.
 
 ```{r data, echo = FALSE}
-# Load breast cancer dataset
+library(dplyr)
+
 data("BreastCancer", package = "mlbench")
 df <- BreastCancer
 
@@ -87,8 +66,15 @@ df <- df %>%
 # Rename response to "Diagnosis" for clarity
 names(df)[names(df) == "Class"] <- "Diagnosis"
 
-# Confirm structure
-str(df)
+# reset row indices
+rownames(df) <- NULL
+
+# split the data
+df <- as.data.frame(df)
+nrow(df)
+split_at_row <- round(nrow(df)*.8, digits = 0)
+df_train <- df[1:split_at_row,]
+df_test <- df[(split_at_row+1):nrow(df),]
 
 ```
 
