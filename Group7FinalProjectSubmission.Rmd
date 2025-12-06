@@ -13,7 +13,7 @@ The repository that contains the project with our test files and the project for
 
 The repository is named Final_Project_Group_7. 
 
-The project that contains the documentation for our package is in the folder FinalProjectNimra. 
+The project that contains the documentation for our package is in the folder FinalProjectNImra. 
 
 # 5. HTML with Runnable Examples
 
@@ -119,7 +119,9 @@ The purpose of this section is to replace the original placeholder example from 
 
 We show both linear and logistic regression examples, and this section confirms that the package functions integrate properly and produce interpretable, stable results for both regression families.
 
+
 ```{r}
+# Load the package
 library(FinalProjectNimra)
 ```
 
@@ -259,7 +261,7 @@ The multi-path AIC procedure identified one plausible and stable model consistin
 
 **Interpretation:**
 
-These examples demonstrate that the `FinalProjectNimra` package successfully:
+These examples demonstrate that the `FinalProjectNImra` package successfully:
 
 + Explores multiple near-optimal AIC paths
 
@@ -274,7 +276,7 @@ The results verify that both linear and logistic regression families are support
 The vignette that is included in the documentation for our package is copied below for convenience.
 
 ```{r}
-library(FinalProjectNimra)
+library(FinalProjectNImra)
 library(mlbench)
 library(dplyr)
 library(caret)
@@ -283,7 +285,7 @@ set.seed(123)
 
 # Introduction
 
-This vignette demonstrates the use of the **FinalProjectNimra** package to perform a complete model selection pipeline based on a **multi-path AIC procedure**.  
+This vignette demonstrates the use of the **FinalProjectNImra** package to perform a complete model selection pipeline based on a **multi-path AIC procedure**.  
 
 The package implements an advanced workflow that:
 
