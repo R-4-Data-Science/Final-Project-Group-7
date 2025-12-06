@@ -18,7 +18,7 @@ vignette: >
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-#library(FinalProjectNimra)
+library(FinalProjectNimra)
 library(mlbench)
 library(dplyr)
 library(caret)
@@ -139,8 +139,6 @@ print(stability_scores)
 ```{r}
 # Filter plausible models with AIC + Stability thresholds
 
-
-
 plausible <- plausible_models(
   full_data_models = paths_v$path_forest$frontiers, 
   stability_df = stability_scores$path_stability)
@@ -149,53 +147,46 @@ plausible <- plausible_models(
 # Show resulting plausible models
 print(plausible)
 
-# plotting
-#ggplot(stab_df, aes(x = Stability)) +
-#  geom_histogram(binwidth = 0.05, fill = "purple", color = "white") +
- # geom_vline(xintercept = 0.6, color = "red", linetype = "dashed") +
-#  labs(title = "Distribution of Predictor Stabilities", x = "πⱼ", y = "Count")
-
-
 ```
+
 
 
 ## Evaluate Each Plausible Model (on Test Set)
 
-We now evaluate the **most stable plausible model** on the held-out test set. The model is fitted on the training data using the predictors identified from the multi-path AIC procedure and then validated on the test data.
+We now evaluate the **most stable plausible modes** on the held-out test set. The models are fitted on the test data using the predictors identified from the multi-path AIC procedure and then validated on the test data.
 
-After performing the multi-path AIC search and stability estimation, we identify the final plausible models using both AIC and stability-based filtering criteria. This is achieved internally through the function `select_plausible_models()`, which applies two key thresholds: the **AIC tolerance (Δ)** and the **minimum average stability (τ)**.
+After performing the multi-path AIC search and stability estimation, we identify the final plausible models using both AIC and stability-based filtering criteria. This is achieved internally through the function `plausible_models()`, which applies two key thresholds: the **AIC tolerance (Δ)** and the **minimum average stability (τ)**.
 
-Although **Δ** (Delta) is not explicitly specified in our vignette code, it is automatically applied as the argument `delta_AIC = 2` inside the `select_plausible_models()` function. By default, this threshold retains all models whose AIC values are within **two units of the minimum AIC**, which is the standard guideline for identifying statistically indistinguishable models in terms of fit quality [(Burnham & Anderson, 2002)](https://doi.org/10.1007/b97636). Thus, the plausible model selection process inherently respects this Δ = 2 criterion even without user specification.
+Although **Δ** (Delta) is not explicitly specified in our vignette code, it is automatically applied as the argument `delta_AIC = 2` inside the `plausible_models()` function. By default, this threshold retains all models whose AIC values are within **two units of the minimum AIC**, which is the standard guideline for identifying statistically indistinguishable models in terms of fit quality [(Burnham & Anderson, 2002)](https://doi.org/10.1007/b97636). Thus, the plausible model selection process inherently respects this Δ = 2 criterion even without user specification.
 
 Similarly, the stability threshold **τ = 0.6** is used to filter models based on the consistency of variable selection across bootstrap resamples. Variables that appear in at least 60% of resampled models are retained as stable predictors. This threshold balances parsimony and robustness by emphasizing predictors that contribute reliably to model performance across sampling variability [(Meinshausen & Bühlmann, 2010)](https://doi.org/10.1214/09-AOS687).
 
+
 ```{r}
-# Apply confusion metrics on each plausible model
-evaluation <- lapply(plausible$fit, function(mod) {
-  confusion_metrics(mod, data = test_data)
-})
+# Calculate confusion metrics
 
-# Display metrics for each plausible model
-for (i in seq_along(evaluation)) {
-  cat("\nModel", i, "-", plausible$variables[i], "\n")
-  print(evaluation[[i]]$metrics)
-}
-
+confusion_1 <- confusion_metrics(model = plausible[[1]]$fit, data = df_test)
+confusion_2 <- confusion_metrics(model = plausible[[2]]$fit, data = df_test)
+confusion_3 <- confusion_metrics(model = plausible[[3]]$fit, data = df_test)
+confusion_1
+confusion_2
+confusion_3
 ```
+
 
 ***Interpretation:***
 
 The confusion matrix above summarizes the classification performance of the logistic model on the unseen test data, comparing predicted versus actual tumor classes. The confusion matrix shows **excellent classification** performance on the test data.
 
-+ **Accuracy** = 0.9608 → Out of 204 test samples, 196 were correctly classified, yielding an overall accuracy of 96.1%.
++ **Accuracy** = `r confusion_1$metrics$Accuracy` → Out of 137 test samples, 135 were correctly classified, yielding an overall accuracy of 98%.
 
-+ **Sensitivity** = 0.924 → The model correctly identifies 92.4% of malignant tumors, demonstrating strong detection ability for positive cases.
++ **Sensitivity** = `r confusion_1$metrics$Sensitivity` → The model correctly identifies 97% of malignant tumors, demonstrating strong detection ability for positive cases.
 
-+ **Specificity** = 0.978 → The model correctly identifies 97.8% of benign tumors, meaning very few benign samples were misclassified as malignant.
++ **Specificity** = `r confusion_1$metrics$Specificity`→ The model correctly identifies 99% of benign tumors, meaning very few benign samples were misclassified as malignant.
 
-+ **FDR** = 0.0217 → Only about 2% of predicted malignant cases were actually benign, showing that false positives are minimal.
++ **FDR** = `r confusion_1$metrics$Precision` → Only about 2% of predicted malignant cases were actually benign, showing that false positives are minimal.
 
-+ **DOR** = 549 → The extremely high Diagnostic Odds Ratio indicates outstanding discriminative power, confirming the model’s ability to separate malignant and benign cases with high reliability.
++ **DOR** = 3434 → The extremely high Diagnostic Odds Ratio indicates outstanding discriminative power, confirming the model’s ability to separate malignant and benign cases with high reliability.
 
 Overall, these results confirm that the multi-path AIC–selected model generalizes exceptionally well, achieving high accuracy and balanced performance across sensitivity and specificity. It effectively identifies malignant cases while maintaining very low false-positive and false-negative rates, a crucial feature for reliable medical classification.
 
@@ -211,20 +202,12 @@ sessionInfo()
 
 The results from the model evaluation demonstrate that the **multi-path AIC procedure** produces a highly accurate and reliable logistic regression model for breast cancer classification. By exploring multiple near-optimal model paths and assessing variable stability through bootstrap resampling, the algorithm identifies predictors that are both **statistically sound** and **biologically meaningful**.
 
-The final model achieved:
 
-- **Accuracy:** 0.96  
-- **Sensitivity:** 0.92  
-- **Specificity:** 0.98  
-- **False Discovery Rate (FDR):** 0.02  
-- **Diagnostic Odds Ratio (DOR):** 549  
 
 These metrics indicate **excellent generalization performance**.  
-The model correctly classified the majority of both malignant and benign cases, with **very few misclassifications** (only 8 out of 204 total samples).  
+The model correctly classified the majority of both malignant and benign cases, with **very few misclassifications**
 
-The high **sensitivity** shows that the model effectively identifies malignant tumors — a crucial property for medical diagnostic models where false negatives can have serious consequences. At the same time, the **specificity** close to 98% ensures that benign cases are rarely misclassified as malignant, minimizing unnecessary concern or follow-up procedures.
-
-The **DOR value of 549** further confirms the model’s **outstanding discriminative ability** ,values above 100 typically indicate a strong distinction between positive and negative classes, while this result shows near-perfect separation.  
+The high **sensitivity** shows that the model effectively identifies malignant tumors — a crucial property for medical diagnostic models where false negatives can have serious consequences. At the same time, the **specificity** close to 99% ensures that benign cases are rarely misclassified as malignant, minimizing unnecessary concern or follow-up procedures.
 
 Additionally, the earlier **stability analysis** revealed that features such as **Bare.nuclei** and **Cell.size** were consistently selected across bootstrap resamples, reinforcing their importance as **robust and reproducible predictors**. This stability, combined with the high predictive performance, demonstrates that the **multi-path AIC approach** successfully balances **model parsimony**, **interpretability**, and **accuracy**.
 
