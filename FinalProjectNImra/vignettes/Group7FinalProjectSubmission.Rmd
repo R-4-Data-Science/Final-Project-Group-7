@@ -143,6 +143,12 @@ library(FinalProjectNimra)
 Our chosen defaults for the interal workings of our functions were:
   - K (maximum number of steps) = 5: default of 5 levels for the iterations allows for thorough filtering but avoids long run time.
   - $\epsilon$ (minimum AIC improvement from parent model) = .000001: keeping this smalls allows us to retain models that improve even a small amount from their parent.
+  - $\delta$ (AIC tolerance for near ties in children) = 2: this means that only children that perform essentially equally best are retained.
+  - $L$ (max number of models kept per level) = 25: this allows for a pool of good models to be kept at each level, but prevents clutter/ long run time.
+  - $B$ (number of resamples for stability) = 100: the bootstrap resampling is most effective if the number of resamples is high to improve accuracy, but you must also balance run time, and 100 has worked well.
+  - $\Delta$ (AIC tolerance for plausibility) = 2: same as $\delta$, this ensures that only models that are the very best and very close are retained.
+  - $\tau$ (minimum average stability) = 0.6: this metric ensures that only variables that appear in the majority of models, and therefore are the most stable, are prioritized.
+  
   
 ## Example 1 – Linear Regression (Gaussian)
 
