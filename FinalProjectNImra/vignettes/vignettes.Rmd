@@ -125,68 +125,26 @@ print(paths_v)
 
 ```{r}
 # Estimate stability using 100 bootstrap replicates
-stability_scores_v <- stability(
+stability_scores <- stability(
   X = df_train, 
   response = "Diagnosis")
 
 # Print top stable features
-print(stability_scores_v)
+print(stability_scores)
 
 ```
-## Stability Visualization
-
-The variable stability plot shows how frequently each predictor appears across bootstrap samples. High stability indicates robust predictors that consistently contribute to good model fits.
-
-```{r}
-# Visualize stability scores
-library(ggplot2)
-
-# Prepare data frame for plotting
-stab_df <- data.frame(
-  Predictor = names(res_stability$pi),
-  Stability = res_stability$pi
-)
-
-stab_df <- stab_df %>%
-  arrange(desc(Stability)) %>%
-  mutate(Predictor = factor(Predictor, levels = Predictor))  # preserve order
-
-# Plot
-ggplot(stab_df, aes(x = Predictor, y = Stability)) +
-  geom_col(fill = "steelblue") +
-  geom_hline(yintercept = 0.6, linetype = "dashed", color = "red") +
-  labs(
-    title = "Variable Selection Stability (πⱼ)",
-    subtitle = "Dashed line = 0.6 stability threshold",
-    y = "Average Stability (πⱼ)",
-    x = "Predictor"
-  ) +
-  coord_flip() +
-  theme_minimal()
-
-```
-
-***Interpretation:***
-
-From Figure, Bare.nuclei and Cell.size exhibit the highest stability, each appearing in the majority of bootstrap-selected models. This suggests that these predictors are the most reliable and consistently associated with breast cancer classification outcomes.
-
-Variables such as  Cl.thickness and Cell.shape show moderate stability, implying that they may contribute to the model in some bootstrap samples but are not universally strong predictors.
-
-On the other hand, features like Bl.cromatin, Marg.adhesion, Mitoses, Normal.nucleoli, Id, and Epith.c.size demonstrate low stability, indicating that they are less influential and may represent noise or dataset-specific variability.
-
-Overall, the stability plot highlights Bare.nuclei and Cell.size as the most critical and reproducible predictors across resampled models.
 
 # Select Plausible Models (AIC + Stability)
 
 ```{r}
 # Filter plausible models with AIC + Stability thresholds
-plausible <- select_plausible_models(
-  full_data_models = res_logistic,
-  stability_obj = res_stability,
-  delta_AIC = 2,
-  tau = 0.5,
-  keep_fits = TRUE
-)
+
+
+
+plausible <- plausible_models(
+  full_data_models = paths_v$path_forest$frontiers, 
+  stability_df = stability_scores$path_stability)
+
 
 # Show resulting plausible models
 print(plausible)
