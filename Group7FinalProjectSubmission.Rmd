@@ -119,14 +119,10 @@ The purpose of this section is to replace the original placeholder example from 
 
 We show both linear and logistic regression examples, and this section confirms that the package functions integrate properly and produce interpretable, stable results for both regression families.
 
-```{r install-and-load}
-# Install the package (uncomment if not already installed)
-# install.packages("remotes")
-# remotes::install_github("R-4-Data-Science/Final-Project-Group-7/FinalProjectNImra")
-
-# Load the package
+```{r}
 library(FinalProjectNimra)
 ```
+
 
 Our chosen defaults for the interal workings of our functions were:
   - K (maximum number of steps) = 5: default of 5 levels for the iterations allows for thorough filtering but avoids long run time.
