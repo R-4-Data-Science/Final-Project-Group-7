@@ -48,7 +48,7 @@ plausible_models <- function(full_data_models, stability_df,
   }
 
   # Compute mean stability for each model
-  stability_vec <- setNames(stability_scores$pi, stability_scores$variable)
+  stability_vec <- setNames(stability_scores$path_stability$pi, stability_scores$path_stability$variable)
   for (i in seq_along(plausible_models)) {
     vars <- plausible_models[[i]]$vars
     avg_stab <- mean(stability_vec[vars], na.rm = TRUE)

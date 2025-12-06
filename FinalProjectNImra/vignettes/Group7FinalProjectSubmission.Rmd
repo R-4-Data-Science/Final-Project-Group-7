@@ -270,21 +270,24 @@ AIC_table_glm
 boxplot(AIC_table_glm, main = "Final AIC Values")
 ```
 
-The multi-path AIC procedure identified one plausible and stable model consisting of predictors `X1`, `X2`, and `X5` (AIC = 203.411, Avg. Stability = 1). These variables correspond exactly to the true predictors used to generate the binary outcome, confirming accurate recovery of the underlying data structure.
-
-All three predictors (`X1`, `X2`, `X5`) have a stability score of 1, indicating consistent selection of the correct variables across all bootstrap samples.
+The multi-path AIC procedure identified one plausible and stable model consisting of predictors `X1`, `X2`, and `X5` as important predictors. These variables correspond to the true predictors used to generate the binary outcome, confirming accurate recovery of the underlying data structure.
 
 **Interpretation:**
 
 These examples demonstrate that the `FinalProjectNimra` package successfully:
 
-+ Explores multiple near-optimal AIC paths (controlled by δ = 1).
++ Explores multiple near-optimal AIC paths
 
-+ Estimates variable stability across bootstrap samples (B = 20).
++ Estimates variable stability across bootstrap samples (B = 100).
 
 + Filters plausible models using AIC tolerance (Δ = 2 by default) and stability threshold (τ = 0.6).
 
 The results verify that both linear and logistic regression families are supported and produce interpretable, stable model selections.
+
+# Vignette
+
+The vignette that is included in the documentation for our package is copied below for convenience.
+
 
 # Appendix
 ## Links for chats with ChatGPT

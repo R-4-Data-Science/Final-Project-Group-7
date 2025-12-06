@@ -69,27 +69,22 @@ names(df)[names(df) == "Class"] <- "Diagnosis"
 # reset row indices
 rownames(df) <- NULL
 
-# split the data
-df <- as.data.frame(df)
-nrow(df)
-split_at_row <- round(nrow(df)*.8, digits = 0)
-df_train <- df[1:split_at_row,]
-df_test <- df[(split_at_row+1):nrow(df),]
-
 ```
 
 The dataset contains predictors describing characteristics of cell nuclei and a binary target variable indicating whether the tumor is **malignant** or **benign**.
 
 ## Train/Test Split
 
-We split the data into **70% training** and **30% testing** subsets to evaluate model performance on unseen data.
+We split the data into **80% training** and **20% testing** subsets to evaluate model performance on unseen data.
 
 ```{r split , echo = FALSE}
-set.seed(123)
-n <- nrow(df)
-train_idx <- sample(n, size = round(0.7 * n))
-train_data <- df[train_idx, ]
-test_data  <- df[-train_idx, ]
+
+# split the data
+df <- as.data.frame(df)
+nrow(df)
+split_at_row <- round(nrow(df)*.8, digits = 0)
+df_train <- df[1:split_at_row,]
+df_test <- df[(split_at_row+1):nrow(df),]
 ```
 
 This ensures that both subsets maintain class balance for fair model evaluation.
@@ -102,48 +97,40 @@ The parameters used are summarized below:
 | Parameter | Description | Value Used |
 |------------|--------------|-------------|
 | K | Number of paths explored | 5 |
-| B | Bootstrap replicates for stability estimation | 50 |
+| B | Bootstrap replicates for stability estimation | 100 |
 | δ (delta) | AIC threshold for near-optimal models | 2 |
 | τ (tau) | Stability cutoff for plausible model inclusion | 0.6 |
 
 > **Note:**
 
-These values provide a balanced trade-off between computational efficiency and exploration depth. The AIC tolerance (`delta = 1`) ensures that near-optimal models are retained, while the stability threshold (`tau = 0.6`) filters predictors that consistently appear in at least 60% of bootstrap samples. Parameters `eps` and `L` are left at default values (`eps = 1e-6`, `L = 50`), which are sufficient for this dataset size.
+These values provide a balanced trade-off between computational efficiency and exploration depth. The AIC tolerance (`delta = 2`) ensures that near-optimal models are retained, while the stability threshold (`tau = 0.6`) filters predictors that consistently appear in at least 60% of bootstrap samples. Parameters `eps` and `L` are left at default values (`eps = 1e-6`, `L = 25`), which are sufficient for this dataset size.
 
 ```{r search , echo = FALSE}
 # Run multi-path search on training data
-res_logistic <- multi_path_forward(
-  data = train_data,
-  response = "Diagnosis",
-  K = 5,
-  delta = 2,
-  L = 50,
-  model_type = "logistic"
-)
+paths_v <- build_paths(
+  X = df_train, 
+  response = "Diagnosis", 
+  K = 5, 
+  epsilon = .000001, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL)
 
-# Inspect number of models per step
-sapply(res_logistic$path_forest, length)
-
+print(paths_v)
 ```
 
-δ = 1 defines models whose AIC values are within one unit of the minimum, meaning they are statistically indistinguishable from the best model.
+δ = 2 defines models whose AIC values are within two units of the minimum, meaning they are statistically indistinguishable from the best model.
 
 # Stability Estimation (Bootstrap)
 
 ```{r}
-# Estimate stability using 50 bootstrap replicates
-res_stability <- stability(
-  data = train_data,
-  response = "Diagnosis",
-  B = 50,
-  K = 5,
-  delta = 2,
-  L = 50,
-  model_type = "logistic"
-)
+# Estimate stability using 100 bootstrap replicates
+stability_scores_v <- stability(
+  X = df_train, 
+  response = "Diagnosis")
 
 # Print top stable features
-print(res_stability)
+print(stability_scores_v)
 
 ```
 ## Stability Visualization

@@ -75,5 +75,8 @@ stability <- function(X, response, B = 100, K = 5, epsilon = 1e-6,
   path_stability <- data.frame(variable = predictors, pi = pi)
   path_stability <- path_stability[order(-path_stability$pi), ]
 
-  return(path_stability = path_stability)
+  meta <- list(B = B, K = K, epsilon = epsilon,
+               delta = delta, L = L, model_type = model_type)
+
+  return(list(path_stability = path_stability, meta = meta))
 }
