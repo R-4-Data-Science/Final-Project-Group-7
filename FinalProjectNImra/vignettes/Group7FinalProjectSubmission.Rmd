@@ -121,7 +121,7 @@ This aligns with the way the synthetic data were generated, where `x1`, `x2`, an
 
 ## 5.3 Example Usage
 
-This section demonstrates the **complete workflow** using the functions implemented in the `FinalProjectNimra` package.
+This section demonstrates the **complete workflow** using the functions implemented in the `FinalProjectNImra` package.
 
 The purpose of this section is to replace the original placeholder example from the assignment (which used `build_paths()`, `stability()`, and `plausible_models ()`).
 
@@ -129,7 +129,7 @@ We show both linear and logistic regression examples, and this section confirms 
 
 ```{r install-and-load}
 # Load the package
-library(FinalProjectNimra)
+library(FinalProjectNImra)
 ```
 
 Our chosen defaults for the interal workings of our functions were:
@@ -282,7 +282,7 @@ The results verify that both linear and logistic regression families are support
 The vignette that is included in the documentation for our package is copied below for convenience.
 
 ```{r}
-library(FinalProjectNimra)
+library(FinalProjectNImra)
 library(mlbench)
 library(dplyr)
 library(caret)
