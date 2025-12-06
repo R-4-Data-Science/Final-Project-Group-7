@@ -140,6 +140,8 @@ remotes::install_github("R-4-Data-Science/Final-Project-Group-7/FinalProjectNImr
 library(FinalProjectNimra)
 ```
 
+Our chosen defaults for the interal workings of our functions were:
+  - 
 ## Example 1 – Linear Regression (Gaussian)
 
 We first demonstrate the multi-path AIC workflow on simulated Gaussian data.
@@ -191,11 +193,14 @@ plausible <- plausible_models(
 
 plausible
 
-AIC_table <- data.frame(c(plausible[[1]]$aic, plausible[[2]]$aic, plausible[[3]]$aic, plausible[[4]]$aic), bycol = TRUE)
-?table
+AIC_table <- as.matrix(c(plausible[[1]]$aic, plausible[[2]]$aic, plausible[[3]]$aic, plausible[[4]]$aic), nrow = 1, ncol = 4)
+rownames(AIC_table) <- c("model 1", "model 2", "model 3", "model 4")
+colnames(AIC_table) <- c("Final AIC Values")
+AIC_table
+boxplot(AIC_table, main = "Final AIC Values")
 ```
 
-The multi-path AIC procedure identified a single plausible and stable model containing predictors `X1`, `X2`, `X5` and `X7` (AIC = 348.3359, Avg. Stability = 0.925). These match almost true variables used to generate the data, confirming accurate model recovery.
+The multi-path AIC procedure identified plausible and stable models that all included `X1`, `X2`, `X5` and `X7`. 
 
 ## Example 2 – Logistic Regression (Binomial)
 
