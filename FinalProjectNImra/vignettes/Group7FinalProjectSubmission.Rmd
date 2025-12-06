@@ -7,7 +7,6 @@ output:
     toc: true
     toc_depth: 3
     toc_float: true
-    number_sections: True
     fig_caption: true
     highlight: tango    # Colorful syntax highlighting
 vignette: >
@@ -131,10 +130,10 @@ The purpose of this section is to replace the original placeholder example from 
 
 We show both linear and logistic regression examples, and this section confirms that the package functions integrate properly and produce interpretable, stable results for both regression families.
 
-```{r install-and-load, eval=FALSE}
+```{r install-and-load}
 # Install the package (uncomment if not already installed)
-install.packages("remotes")
-remotes::install_github("R-4-Data-Science/Final-Project-Group-7/FinalProjectNImra")
+# install.packages("remotes")
+# remotes::install_github("R-4-Data-Science/Final-Project-Group-7/FinalProjectNImra")
 
 # Load the package
 library(FinalProjectNimra)
@@ -194,7 +193,7 @@ stability_scores <- stability(
 # select plausible models
 plausible <- plausible_models(
   full_data_models = path_forest$path_forest$frontiers, 
-  stability_df = path_stability,
+  stability_df = stability_scores,
   delta = 2,
   tau = 0.6
   )
@@ -229,25 +228,46 @@ ybin <- rbinom(n, 1, prob)
 # Combine into a data frame
 dfb <- as.data.frame(cbind(y = ybin, Xb))
 
-# Run the full multi-path AIC procedure
-res_logistic <- multi_path_AIC_procedure(
-  data = dfb,
-  response = "y",
-  K = 5,                # number of forward-selection steps
-  epsilon = 1e-6,       # convergence tolerance
-  delta = 2,            # AIC tolerance for path branching
-  L = 25,               # number of paths to explore
-  B = 50,               # bootstrap samples for stability
-  delta_AIC = 2,        # AIC threshold for plausible models
-  tau = 0.6,            # stability threshold
-  model_type = "logistic"  # specify model type
-)
+# Run the full procedure
 
-# Display plausible logistic models
-res_logistic$plausible_models
+# multi-path forward selection
+path_forest_glm <- build_paths(
+  X = dfb, 
+  response = "y", 
+  K = 5,
+  epsilon = .000001, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL
+  )
 
-# Visualize variable stability
-plot_stability(res_logistic$stability)
+# stability with resampling
+stability_scores_glm <- stability(
+  X = dfb, 
+  response = "y", 
+  B = 100, 
+  K = 5, 
+  epsilon = 1e-6, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL
+  )
+
+# select plausible models
+plausible_glm <- plausible_models(
+  full_data_models = path_forest_glm$path_forest$frontiers, 
+  stability_df = stability_scores_glm,
+  delta = 2,
+  tau = 0.6
+  )
+
+plausible_glm
+
+AIC_table_glm <- as.matrix(c(plausible_glm[[1]]$aic), nrow = 1, ncol = 1)
+rownames(AIC_table_glm) <- "model 1"
+colnames(AIC_table_glm) <- c("Final AIC Values")
+AIC_table_glm
+boxplot(AIC_table_glm, main = "Final AIC Values")
 ```
 
 The multi-path AIC procedure identified one plausible and stable model consisting of predictors `X1`, `X2`, and `X5` (AIC = 203.411, Avg. Stability = 1). These variables correspond exactly to the true predictors used to generate the binary outcome, confirming accurate recovery of the underlying data structure.
