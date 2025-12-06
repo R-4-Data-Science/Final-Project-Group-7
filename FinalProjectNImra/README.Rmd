@@ -15,10 +15,10 @@ You can install the package directly from GitHub using:
 install.packages("remotes")
 
 # Install the package
-remotes::install_github("R-4-Data-Science/FinalProjectNimra")
+remotes::install_github("R-4-Data-Science/Final-Project-Group-7/FinalProjectNImra")
 
 #Then load it with:
-library(FinalProjectNimra)
+library(FinalProjectNImra)
 
 ```
 
@@ -29,21 +29,48 @@ Below is a minimal example demonstrating the end-to-end workflow on the built-in
 ```{r}
 set.seed(123)
 
-# Run full multi-path model selection
-res_linear <- build_paths(
-  data = mtcars,
-  response = "mpg",
-  K = 4,       # number of forward steps
-  B = 20,      # bootstrap resamples
-  delta = 1,   # AIC tolerance
-  tau = 0.6    # stability threshold
-)
+# Simulate Gaussian data
+n <- 120; p <- 8
+X <- matrix(rnorm(n * p), n, p)
+beta <- c(2, -1.5, 0, 0, 1, rep(0, p - 5))
+y <- X %*% beta + rnorm(n, sd = 1)
+df <- as.data.frame(cbind(y, X))
+colnames(df) <- c("y", paste0("x", 1:p))
 
-# List plausible models
-res_linear$plausible_models
+# Run the full procedure
 
-# Plot variable stability
-plot_stability(res_linear$stability)
+# multi-path forward selection
+path_forest <- build_paths(
+  X = df, 
+  response = "y", 
+  K = 5,
+  epsilon = .000001, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL
+  )
+
+# stability with resampling
+stability_scores <- stability(
+  X = df, 
+  response = "y", 
+  B = 100, 
+  K = 5, 
+  epsilon = 1e-6, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL
+  )
+
+# select plausible models
+plausible <- plausible_models(
+  full_data_models = path_forest$path_forest$frontiers, 
+  stability_df = stability_scores,
+  delta = 2,
+  tau = 0.6
+  )
+
+plausible
 ```
 
 ## Example 2 – Logistic Regression
@@ -51,24 +78,53 @@ plot_stability(res_linear$stability)
 This example uses the same data but treats am (automatic/manual transmission) as a binary response.
 
 ```{r}
-set.seed(123)
+# Simulate binary logistic data
+n <- 200; p <- 6
+Xb <- matrix(rnorm(n * p), n, p)
+colnames(Xb) <- paste0("x", 1:p)
 
-# Run logistic model selection
-res_logistic <- multi_path_AIC_procedure(
-  data = mtcars,
-  response = "am",
-  K = 4,
-  B = 20,
-  delta = 1,
+# Define the true logistic relationship
+linpred <- 1.2 * Xb[,1] - 1 * Xb[,2] + 0.8 * Xb[,5]
+prob <- 1 / (1 + exp(-linpred))
+ybin <- rbinom(n, 1, prob)
+
+# Combine into a data frame
+dfb <- as.data.frame(cbind(y = ybin, Xb))
+
+# Run the full procedure
+
+# multi-path forward selection
+path_forest_glm <- build_paths(
+  X = dfb, 
+  response = "y", 
+  K = 5,
+  epsilon = .000001, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL
+  )
+
+# stability with resampling
+stability_scores_glm <- stability(
+  X = dfb, 
+  response = "y", 
+  B = 100, 
+  K = 5, 
+  epsilon = 1e-6, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL
+  )
+
+# select plausible models
+plausible_glm <- plausible_models(
+  full_data_models = path_forest_glm$path_forest$frontiers, 
+  stability_df = stability_scores_glm,
+  delta = 2,
   tau = 0.6
-)
+  )
 
-# Display plausible logistic models
-res_logistic$plausible_models
-
-# Plot stability
-plot_stability(res_logistic$stability)
-
+plausible_glm
 ```
 
 ## Summary

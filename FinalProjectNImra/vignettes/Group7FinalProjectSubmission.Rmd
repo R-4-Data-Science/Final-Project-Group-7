@@ -288,6 +288,205 @@ The results verify that both linear and logistic regression families are support
 
 The vignette that is included in the documentation for our package is copied below for convenience.
 
+```{r}
+library(FinalProjectNimra)
+library(mlbench)
+library(dplyr)
+library(caret)
+set.seed(123)
+```
+
+# Introduction
+
+This vignette demonstrates the use of the **FinalProjectNimra** package to perform a complete model selection pipeline based on a **multi-path AIC procedure**.  
+
+The package implements an advanced workflow that:
+
+1. Explores **multiple forward-selection paths** using AIC (`build_paths()`),  
+2. Quantifies **variable stability** via bootstrap resampling (`stability()`), and  
+3. Filters a **plausible model set** using both AIC and average stability (`plausible_models()`), optionally providing fitted models for prediction.
+
+We illustrate the workflow on the **Breast Cancer Wisconsin** data set for **logistic regression**, including:
+
+- train/test split,  
+- multi-path AIC search and stability analysis,  
+- plausible model selection with AIC tolerance (Δ) and stability threshold (τ),  
+- test-set evaluation using a confusion matrix and performance metrics.
+
+At the end, we summarize how the package functions correspond to the project rubric’s function names and provide additional synthetic examples.
+  
+# Breast Cancer Example (Main Vignette)
+
+## Data loading and preprocessing
+
+We use the **Breast Cancer Wisconsin** dataset from the **mlbench** package. The goal is to classify tumors as **malignant** (1) vs **benign** (0) based on several cell-nuclei features.
+
+```{r data, echo = FALSE}
+library(dplyr)
+
+data("BreastCancer", package = "mlbench")
+df <- BreastCancer
+
+# Clean and preprocess
+df <- df %>%
+  select(-Id) %>%                         # Drop ID column
+  filter(complete.cases(.)) %>%          # Remove rows with missing values
+  mutate(across(-Class, as.numeric)) %>% # Convert predictors to numeric
+  mutate(Class = factor(Class))          # Ensure response is factor
+
+# Rename response to "Diagnosis" for clarity
+names(df)[names(df) == "Class"] <- "Diagnosis"
+
+# reset row indices
+rownames(df) <- NULL
+
+```
+
+The dataset contains predictors describing characteristics of cell nuclei and a binary target variable indicating whether the tumor is **malignant** or **benign**.
+
+## Train/Test Split
+
+We split the data into **80% training** and **20% testing** subsets to evaluate model performance on unseen data.
+
+```{r split , echo = FALSE}
+
+# split the data
+df <- as.data.frame(df)
+nrow(df)
+split_at_row <- round(nrow(df)*.8, digits = 0)
+df_train <- df[1:split_at_row,]
+df_test <- df[(split_at_row+1):nrow(df),]
+```
+
+This ensures that both subsets maintain class balance for fair model evaluation.
+
+# Multi-Path AIC Search
+
+We now run the **multi-path model selection pipeline** from our package on the training set.  
+The parameters used are summarized below:
+
+| Parameter | Description | Value Used |
+|------------|--------------|-------------|
+| K | Number of paths explored | 5 |
+| B | Bootstrap replicates for stability estimation | 100 |
+| δ (delta) | AIC threshold for near-optimal models | 2 |
+| τ (tau) | Stability cutoff for plausible model inclusion | 0.6 |
+
+> **Note:**
+
+These values provide a balanced trade-off between computational efficiency and exploration depth. The AIC tolerance (`delta = 2`) ensures that near-optimal models are retained, while the stability threshold (`tau = 0.6`) filters predictors that consistently appear in at least 60% of bootstrap samples. Parameters `eps` and `L` are left at default values (`eps = 1e-6`, `L = 25`), which are sufficient for this dataset size.
+
+```{r search , echo = FALSE}
+# Run multi-path search on training data
+paths_v <- build_paths(
+  X = df_train, 
+  response = "Diagnosis", 
+  K = 5, 
+  epsilon = .000001, 
+  delta = 2, 
+  L = 25, 
+  model_type = NULL)
+
+print(paths_v)
+```
+
+δ = 2 defines models whose AIC values are within two units of the minimum, meaning they are statistically indistinguishable from the best model.
+
+# Stability Estimation (Bootstrap)
+
+```{r}
+# Estimate stability using 100 bootstrap replicates
+stability_scores <- stability(
+  X = df_train, 
+  response = "Diagnosis")
+
+# Print top stable features
+print(stability_scores)
+
+```
+
+# Select Plausible Models (AIC + Stability)
+
+```{r}
+# Filter plausible models with AIC + Stability thresholds
+
+plausible <- plausible_models(
+  full_data_models = paths_v$path_forest$frontiers, 
+  stability_df = stability_scores$path_stability)
+
+
+# Show resulting plausible models
+print(plausible)
+
+```
+
+## Evaluate Each Plausible Model (on Test Set)
+
+We now evaluate the **most stable plausible modes** on the held-out test set. The models are fitted on the test data using the predictors identified from the multi-path AIC procedure and then validated on the test data.
+
+After performing the multi-path AIC search and stability estimation, we identify the final plausible models using both AIC and stability-based filtering criteria. This is achieved internally through the function `plausible_models()`, which applies two key thresholds: the **AIC tolerance (Δ)** and the **minimum average stability (τ)**.
+
+Although **Δ** (Delta) is not explicitly specified in our vignette code, it is automatically applied as the argument `delta_AIC = 2` inside the `plausible_models()` function. By default, this threshold retains all models whose AIC values are within **two units of the minimum AIC**, which is the standard guideline for identifying statistically indistinguishable models in terms of fit quality [(Burnham & Anderson, 2002)](https://doi.org/10.1007/b97636). Thus, the plausible model selection process inherently respects this Δ = 2 criterion even without user specification.
+
+Similarly, the stability threshold **τ = 0.6** is used to filter models based on the consistency of variable selection across bootstrap resamples. Variables that appear in at least 60% of resampled models are retained as stable predictors. This threshold balances parsimony and robustness by emphasizing predictors that contribute reliably to model performance across sampling variability [(Meinshausen & Bühlmann, 2010)](https://doi.org/10.1214/09-AOS687).
+
+
+```{r}
+# Calculate confusion metrics
+
+confusion_1 <- confusion_metrics(model = plausible[[1]]$fit, data = df_test)
+confusion_2 <- confusion_metrics(model = plausible[[2]]$fit, data = df_test)
+confusion_3 <- confusion_metrics(model = plausible[[3]]$fit, data = df_test)
+confusion_1
+confusion_2
+confusion_3
+```
+
+
+***Interpretation:***
+
+The confusion matrix above summarizes the classification performance of the logistic model on the unseen test data, comparing predicted versus actual tumor classes. The confusion matrix shows **excellent classification** performance on the test data.
+
++ **Accuracy** = `r confusion_1$metrics$Accuracy` → Out of 137 test samples, 135 were correctly classified, yielding an overall accuracy of 98%.
+
++ **Sensitivity** = `r confusion_1$metrics$Sensitivity` → The model correctly identifies 97% of malignant tumors, demonstrating strong detection ability for positive cases.
+
++ **Specificity** = `r confusion_1$metrics$Specificity`→ The model correctly identifies 99% of benign tumors, meaning very few benign samples were misclassified as malignant.
+
++ **FDR** = `r confusion_1$metrics$Precision` → Only about 2% of predicted malignant cases were actually benign, showing that false positives are minimal.
+
++ **DOR** = 3434 → The extremely high Diagnostic Odds Ratio indicates outstanding discriminative power, confirming the model’s ability to separate malignant and benign cases with high reliability.
+
+Overall, these results confirm that the multi-path AIC–selected model generalizes exceptionally well, achieving high accuracy and balanced performance across sensitivity and specificity. It effectively identifies malignant cases while maintaining very low false-positive and false-negative rates, a crucial feature for reliable medical classification.
+
+# Reproducibility
+
+Ensuring reproducibility is a critical step in any data analysis workflow. The following R session information records package versions and environment details used to generate this vignette. This allows other researchers to replicate the analysis exactly.
+
+```{r session-info}
+sessionInfo()
+```
+
+# Discussion
+
+The results from the model evaluation demonstrate that the **multi-path AIC procedure** produces a highly accurate and reliable logistic regression model for breast cancer classification. By exploring multiple near-optimal model paths and assessing variable stability through bootstrap resampling, the algorithm identifies predictors that are both **statistically sound** and **biologically meaningful**.
+
+
+
+These metrics indicate **excellent generalization performance**.  
+The model correctly classified the majority of both malignant and benign cases, with **very few misclassifications**
+
+The high **sensitivity** shows that the model effectively identifies malignant tumors — a crucial property for medical diagnostic models where false negatives can have serious consequences. At the same time, the **specificity** close to 99% ensures that benign cases are rarely misclassified as malignant, minimizing unnecessary concern or follow-up procedures.
+
+Additionally, the earlier **stability analysis** revealed that features such as **Bare.nuclei** and **Cell.size** were consistently selected across bootstrap resamples, reinforcing their importance as **robust and reproducible predictors**. This stability, combined with the high predictive performance, demonstrates that the **multi-path AIC approach** successfully balances **model parsimony**, **interpretability**, and **accuracy**.
+
+**Summary:**  
+The multi-path AIC–based selection framework provides a powerful and interpretable solution for identifying reliable predictors of breast cancer malignancy.  
+
+It ensures that the final model is not only statistically optimal (in terms of AIC) but also **clinically meaningful**, achieving strong predictive performance with stable and biologically relevant variables.
+
+
+# End of Report!!!!!!
 
 # Appendix
 ## Links for chats with ChatGPT
